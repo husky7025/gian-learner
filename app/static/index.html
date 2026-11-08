@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기안 학습기</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<aside id="sidebar">
+  <div class="brand">📝 기안 학습기<small>이 컴퓨터에서만 작동</small></div>
+  <div id="catTabs" class="cat-tabs"></div>
+  <div class="side-title">양식 목록</div>
+  <ul id="formList"></ul>
+  <form id="newForm" class="new-form">
+    <input id="newFormName" placeholder="새 양식 이름" maxlength="60">
+    <button type="submit">＋ 추가</button>
+  </form>
+  <div class="side-bottom">
+    <button id="openSettings" class="ghost">⚙ 설정 · 백업 · 초기화</button>
+    <button id="shutdown" class="ghost">⏻ 앱 종료</button>
+  </div>
+</aside>
+
+<main id="main">
+  <section id="empty" class="empty">
+    <h1>기안 학습기에 오신 것을 환영합니다</h1>
+    <ol>
+      <li>왼쪽 아래에서 <b>새 양식</b>을 만드세요. (예: 물품 품의, 내부결재 기안)</li>
+      <li><b>샘플</b> 탭에서 같은 양식의 기안 .hwpx 파일을 2~5개 올리면 자동으로 학습합니다.</li>
+      <li><b>작성</b> 탭에서 내용을 채우고 <b>HWPX 만들기</b>를 누르면 같은 서식의 파일이 만들어집니다.</li>
+    </ol>
+    <p class="muted">학습 내용은 이 컴퓨터에 저장되어 앱이나 컴퓨터를 껐다 켜도 남아 있습니다.</p>
+  </section>
+
+  <section id="workspace" hidden>
+    <header class="ws-head">
+      <h1 id="formTitle"></h1>
+      <button id="renameForm" class="ghost small" title="이름 바꾸기">✎</button>
+      <select id="formCat" title="분류 옮기기"></select>
+      <nav class="tabs">
+        <button data-tab="write" class="active">✍ 작성</button>
+        <button data-tab="learn">🧠 학습 내용</button>
+        <button data-tab="samples">📁 샘플</button>
+        <button data-tab="history">🕘 이력</button>
+      </nav>
+    </header>
+    <div id="notice" class="notice" hidden></div>
+
+    <div class="tab" id="tab-write">
+      <div id="writeNotReady" class="empty small" hidden>
+        <p>아직 학습된 내용이 없습니다. <b>📁 샘플</b> 탭에서 기안 .hwpx 파일을 올려 주세요.</p>
+      </div>
+      <div id="writeArea" class="split" hidden>
+        <div class="editor">
+          <div class="toolbar">
+            <label class="fname">파일 이름 <input id="fileName" placeholder="비워 두면 건명/제목으로 저장"></label>
+            <button id="fillExamples" class="ghost small" title="빈칸을 샘플 내용으로 채웁니다">예시로 빈칸 채우기</button>
+            <button id="resetDraft" class="ghost small">처음 상태로</button>
+          </div>
+          <div class="helpers">
+            <span class="muted small">입력 도우미 (커서가 있는 칸에 넣기):</span>
+            <input id="helpDate" type="date"><button id="insDate" class="small">📅 날짜 넣기</button>
+            <button id="insToday" class="small">오늘</button>
+            <input id="helpMoney" type="text" inputmode="numeric" placeholder="금액 (예: 300000)"><button id="insMoney" class="small">💰 금액 넣기</button>
+          </div>
+          <div id="blocks"></div>
+          <div class="actions">
+            <span id="draftState" class="muted small"></span>
+            <button id="generate" class="primary">📄 HWPX 만들기</button>
+          </div>
+        </div>
+        <div class="preview">
+          <div class="preview-head">미리보기 <span class="muted small">(글자 배치는 한글에서 원본 서식으로 표시됩니다)</span></div>
+          <pre id="preview"></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" id="tab-learn" hidden>
+      <div id="learnArea"></div>
+    </div>
+
+    <div class="tab" id="tab-samples" hidden>
+      <div id="drop" class="drop">
+        <p><b>여기로 .hwpx 파일을 끌어다 놓거나</b></p>
+        <label class="primary btn">파일 선택<input id="fileInput" type="file" accept=".hwpx,.hwp" multiple hidden></label>
+        <p class="muted small">같은 양식의 기안을 여러 개 올릴수록 고정 부분과 입력칸을 더 정확히 구분합니다. 구버전 .hwp는 한글에서 HWPX로 저장해 올려 주세요.</p>
+      </div>
+      <div id="uploadMsg"></div>
+      <h3>올린 샘플</h3>
+      <ul id="sampleList" class="list"></ul>
+      <div class="danger-zone">
+        <h3>잘못 학습되었나요?</h3>
+        <p class="muted small">초기화하면 이 양식의 샘플과 학습 설정이 지워집니다. 지우기 직전 상태는 자동 백업되어 ⚙ 메뉴에서 되돌릴 수 있습니다.</p>
+        <button id="resetForm" class="danger">이 양식 학습 초기화</button>
+        <button id="deleteForm" class="danger ghost">양식 삭제</button>
+      </div>
+    </div>
+
+    <div class="tab" id="tab-history" hidden>
+      <ul id="historyList" class="list"></ul>
+    </div>
+  </section>
+</main>
+
+<dialog id="settings">
+  <form method="dialog" class="dlg">
+    <h2>⚙ 설정 · 백업 · 초기화</h2>
+    <h3>실행 편의</h3>
+    <div class="sys-row"><button type="button" id="mkDesktop">바탕화면 바로가기 만들기</button><span id="desktopState" class="muted small"></span></div>
+    <div class="sys-row"><label><input type="checkbox" id="autostart"> 컴퓨터를 켜면 자동으로 실행 (창 없이 뒤에서 실행, 바로가기를 누르면 바로 열림)</label></div>
+    <p class="muted small">저장 위치: <code id="dataDir"></code><br>(OneDrive와 동기화되지 않는 이 컴퓨터 전용 폴더입니다)</p>
+    <h3>백업 목록 <span class="muted small">초기화·삭제 직전에 자동으로 만들어집니다 (최근 20개)</span></h3>
+    <ul id="backupList" class="list compact"></ul>
+    <h3>전체 초기화</h3>
+    <p class="muted small">모든 양식, 샘플, 생성 이력을 지웁니다. 직전 상태는 백업됩니다.</p>
+    <button type="button" id="resetAll" class="danger">전체 초기화</button>
+    <div class="dlg-foot"><button value="close">닫기</button></div>
+  </form>
+</dialog>
+
+<div id="toast" hidden></div>
+<script src="/static/app.js"></script>
+</body>
+</html>
