@@ -21,6 +21,11 @@ if __name__ == "__main__":
         log_dir = Path(os.environ.get("GIAN_DATA_DIR") or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "기안학습기")
         log_dir.mkdir(parents=True, exist_ok=True)
         sys.stdout = sys.stderr = open(log_dir / "app.log", "a", encoding="utf-8", buffering=1)
+    for stream in (sys.stdout, sys.stderr):  # 영어 Windows 등에서 한글 출력 때문에 멈추지 않게
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
     if already_running():
         print("이미 실행 중입니다. 브라우저를 엽니다.")
         webbrowser.open(URL)
