@@ -12,3 +12,5 @@
 - ODT·PDF 샘플은 `app/convert.py`로 기본 꾸러미 품의 예시 서식의 hwpx로 변환(content.hpf description=gian-learner:converted). 기준 서식은 원본 hwpx 샘플을 우선.
 - PDF는 pypdf(BSD) 사용. PyMuPDF는 AGPL이라 쓰지 않음.
 - 새 버전 알림: `app/updates.py`가 GitHub releases/latest의 tag_name만 조회(6시간 캐시, settings.json의 update_check로 끔). 시험할 때는 GIAN_UPDATE_URL로 가짜 응답 주소 지정.
+- ⚠ 시험할 때는 반드시 `GIAN_PORT=8766`(다른 포트)와 `GIAN_DATA_DIR`(임시 폴더)를 함께 지정한다. 8765에는 사용자가 실제로 쓰는 앱이 떠 있을 수 있다(2026-11-08 실수로 실제 데이터에 시험 샘플이 올라간 적 있음).
+- AI 작성: `app/ai.py` — 제공자 ollama(기본)/claude(anthropic SDK, output_config json_schema, opus-5-5 등은 fallbacks="default")/gemini/openai(REST). 키는 `ai.json`에 DPAPI 암호화. 온라인 AI는 redact()로 개인정보 가림. 시험은 GIAN_CLAUDE_URL/GIAN_OPENAI_URL/GIAN_GEMINI_URL로 가짜 서버 지정. 실제 모델로 품질 검사는 아직 못 함.

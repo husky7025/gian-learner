@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import ai as AI
 from . import convert as C
 from . import hwpx_engine as E
 from . import packs as P
@@ -21,7 +22,7 @@ from . import system as SYS
 from . import updates as U
 from .version import __version__
 
-PORT = 8765
+PORT = int(os.environ.get("GIAN_PORT", "8765"))
 MAX_UPLOAD = 20 * 1024 * 1024
 STATIC = Path(__file__).parent / "static"
 RESOURCES = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
@@ -371,6 +372,61 @@ def pack_import_default():
         raise HTTPException(400, str(e)) from e
     S.backup("기본꾸러미가져오기전")
     return {"imported": S.import_forms(forms)}
+
+
+class AISettingsIn(BaseModel):
+    provider: str | None = None
+    models: dict[str, str] | None = None
+    ollama_url: str | None = None
+    key: dict[str, str] | None = None
+    consent: dict[str, bool] | None = None
+
+
+class DraftIn(BaseModel):
+    brief: str
+    date: str | None = None  # YYYY-MM-DD
+
+
+@app.get("/api/ai")
+def ai_settings():
+    return AI.public_settings()
+
+
+@app.put("/api/ai")
+def ai_update(body: AISettingsIn):
+    try:
+        return AI.update_settings(body.model_dump(exclude_none=True))
+    except AI.AIError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.get("/api/ai/models")
+def ai_models(provider: str):
+    if provider not in AI.PROVIDERS:
+        raise HTTPException(400, "알 수 없는 AI입니다.")
+    try:
+        return {"models": AI.list_models(provider)}
+    except AI.AIError as e:
+        raise HTTPException(400, str(e)) from e
+
+
+@app.post("/api/forms/{form_id}/ai-draft")
+def ai_draft(form_id: int, body: DraftIn):
+    from datetime import date as _date
+    f = _form_or_404(form_id)
+    tpl, samples = _learn(f)
+    if not tpl.get("ready"):
+        raise HTTPException(400, "먼저 샘플을 올려 양식을 학습시켜 주세요.")
+    try:
+        ref = _date.fromisoformat(body.date) if body.date else _date.today()
+    except ValueError:
+        ref = _date.today()
+    try:
+        return AI.draft(tpl, [S.sample_bytes(s) for s in samples], body.brief, ref)
+    except AI.AIError as e:
+        if str(e) == "CONSENT_REQUIRED":
+            raise HTTPException(409, "CONSENT_REQUIRED") from e
+        raise HTTPException(400, str(e)) from e
 
 
 class SettingsIn(BaseModel):
