@@ -24,6 +24,12 @@
 </aside>
 
 <main id="main">
+  <div id="updateBar" class="update-bar" hidden>
+    <span>🎉 <b>새 버전 <span id="updVer"></span></b>이 나왔습니다. (지금 쓰는 버전: <span id="updCur"></span>)</span>
+    <a id="updLink" class="btn primary small" href="#" target="_blank" rel="noopener">받으러 가기</a>
+    <a class="btn small" href="/help#update">바꾸는 방법</a>
+    <button id="updLater" class="ghost small">나중에</button>
+  </div>
   <section id="empty" class="empty">
     <h1>기안 학습기에 오신 것을 환영합니다</h1>
     <p><a class="btn" href="/help">📖 사용설명서 먼저 보기</a> <span class="muted small">컴퓨터가 익숙하지 않아도 그대로 따라 하면 됩니다.</span></p>
@@ -120,6 +126,8 @@
     <h2>⚙ 설정 · 백업 · 초기화 <a class="btn small" href="/help#share" title="설명 보기">❓</a></h2>
     <h3>실행 편의</h3>
     <div class="sys-row"><button type="button" id="mkDesktop">바탕화면 바로가기 만들기</button><span id="desktopState" class="muted small"></span></div>
+    <div class="sys-row"><label><input type="checkbox" id="updCheck"> 새 버전이 나오면 알려 주기 (인터넷으로 최신 버전 번호만 확인합니다)</label>
+      <button type="button" id="updNow" class="small">지금 확인</button><span id="updState" class="muted small"></span></div>
     <div class="sys-row"><label><input type="checkbox" id="autostart"> 컴퓨터를 켜면 자동으로 실행 (창 없이 뒤에서 실행, 바로가기를 누르면 바로 열림)</label></div>
     <p class="muted small">저장 위치: <code id="dataDir"></code><br>(OneDrive와 동기화되지 않는 이 컴퓨터 전용 폴더입니다)</p>
     <h3>양식 꾸러미 <span class="muted small">학습된 양식을 파일(.gianpack)로 주고받기</span></h3>

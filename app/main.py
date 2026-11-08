@@ -18,6 +18,7 @@ from . import hwpx_engine as E
 from . import packs as P
 from . import storage as S
 from . import system as SYS
+from . import updates as U
 from .version import __version__
 
 PORT = 8765
@@ -370,6 +371,25 @@ def pack_import_default():
         raise HTTPException(400, str(e)) from e
     S.backup("기본꾸러미가져오기전")
     return {"imported": S.import_forms(forms)}
+
+
+class SettingsIn(BaseModel):
+    update_check: bool
+
+
+@app.get("/api/settings")
+def get_settings():
+    return U.load_settings()
+
+
+@app.put("/api/settings")
+def put_settings(body: SettingsIn):
+    return U.save_settings(body.model_dump())
+
+
+@app.get("/api/update-check")
+def update_check(force: bool = False):
+    return U.check(force)
 
 
 class ToggleIn(BaseModel):
