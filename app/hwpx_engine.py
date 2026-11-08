@@ -70,22 +70,23 @@ class HwpxError(ValueError):
 
 # ───────────────────────── 읽기 ─────────────────────────
 
-def _t_text(t) -> str:
+def _t_text(t, br: str = " ") -> str:
     s = t.text or ""
     for c in t:
         name = etree.QName(c).localname
         if name == "tab":
             s += "\t"
         elif name == "lineBreak":
-            s += " "
+            s += br
         elif name in ("nbSpace", "fwSpace"):
             s += " "
         s += c.tail or ""
     return s
 
 
-def para_text(p) -> str:
-    return "".join(_t_text(t) for r in p.findall(HP + "run") for t in r.findall(HP + "t"))
+def para_text(p, br: str = " ") -> str:
+    """문단 글자. br: 문단 안 줄바꿈(lineBreak)을 무엇으로 읽을지 (표 칸은 "\\n")."""
+    return "".join(_t_text(t, br) for r in p.findall(HP + "run") for t in r.findall(HP + "t"))
 
 
 def is_object(p) -> bool:
@@ -252,7 +253,7 @@ def doc_tables(doc: Doc) -> list[dict]:
                         "c": int(a.get("colAddr", 0)) if a is not None else len(row),
                         "cs": int(sp.get("colSpan", 1)) if sp is not None else 1,
                         "rs": int(sp.get("rowSpan", 1)) if sp is not None else 1,
-                        "text": "\n".join(para_text(x).replace("\t", "    ") for x in ps),
+                        "text": "\n".join(para_text(x, "\n").replace("\t", "    ") for x in ps),
                         "locked": any(is_object(x) for x in ps) or not ps,
                         "el": tc,
                     })
@@ -590,7 +591,7 @@ def render_lines(tpl: dict, data: dict) -> list[tuple[int | None, str | None, st
                 out.append((b["src"], pad + extra, "field"))
         elif b["type"] == "outline":
             counters: dict[int, int] = {}
-            for it in data.get("outline", b["items"]):
+            for it in (b["items"] if data.get("outline") is None else data["outline"]):
                 kind = it.get("kind", "item")
                 if kind == "item":
                     d = max(0, min(int(it.get("depth", 0)), len(MARKER_TYPES) - 1))
@@ -619,7 +620,7 @@ def render_lines(tpl: dict, data: dict) -> list[tuple[int | None, str | None, st
                 elif kind == "object" and it.get("src") is not None:
                     out.append((it["src"], None, "object"))
         elif b["type"] == "attach":
-            items = [x.strip().rstrip(".") for x in data.get("attach", b.get("default", [])) if str(x).strip()]
+            items = [x.strip().rstrip(".") for x in (b.get("default", []) if data.get("attach") is None else data["attach"]) if str(x).strip()]
             src = b["src"] if b["src"] is not None else any_outline_src
             cont = b["cont_src"] if b["cont_src"] is not None else src
             head = b.get("indent", "") + "붙임" + b.get("gap", "  ")
@@ -747,6 +748,9 @@ def generate(base_bytes: bytes, tpl: dict, data: dict) -> tuple[bytes, list[str]
         old = files["Preview/PrvText.txt"]
         txt = "\r\n".join(preview)[:1024]
         files["Preview/PrvText.txt"] = (b"\xff\xfe" if old.startswith(b"\xff\xfe") else b"") + txt.encode("utf-16le")
+    if "Preview/PrvImage.png" in files:  # 원본 샘플의 첫 장 그림이 남지 않게
+        from .packs import blank_png
+        files["Preview/PrvImage.png"] = blank_png()
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:

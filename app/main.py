@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 import threading
 from pathlib import Path
 from urllib.parse import quote
@@ -13,12 +14,15 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import hwpx_engine as E
+from . import packs as P
 from . import storage as S
 from . import system as SYS
 
 PORT = 8765
 MAX_UPLOAD = 20 * 1024 * 1024
 STATIC = Path(__file__).parent / "static"
+RESOURCES = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent))
+DEFAULT_PACK = RESOURCES / "packs" / "기본양식.gianpack"
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 
 app = FastAPI(title="기안 학습기", docs_url=None, redoc_url=None, openapi_url=None)
@@ -90,8 +94,8 @@ class OverridesIn(BaseModel):
 class GenerateIn(BaseModel):
     filename: str = ""
     fields: dict[str, str] = {}
-    outline: list[dict] = []
-    attach: list[str] = []
+    outline: list[dict] | None = None
+    attach: list[str] | None = None
     cells: dict[str, str] = {}
     save_history: bool = True
 
@@ -284,6 +288,71 @@ def reset_all():
     name = S.backup("전체초기화")
     S.reset_all()
     return {"ok": True, "backup": name}
+
+
+class PackIn(BaseModel):
+    form_ids: list[int]
+
+
+def _pack_forms(form_ids: list[int]) -> list[dict]:
+    out = []
+    for fid in dict.fromkeys(form_ids):
+        f = _form_or_404(fid)
+        samples = S.list_samples(fid)
+        if samples:
+            out.append({"id": fid, "name": f["name"], "category": f["category"], "overrides": f["overrides"],
+                        "samples": [{"id": s["id"], "filename": s["filename"], "data": S.sample_bytes(s)} for s in samples]})
+    if not out:
+        raise HTTPException(400, "샘플이 있는 양식을 하나 이상 골라 주세요.")
+    return out
+
+
+@app.post("/api/packs/scan")
+def pack_scan(body: PackIn):
+    res = []
+    for f in _pack_forms(body.form_ids):
+        items = []
+        for k, s in enumerate(f["samples"], 1):
+            for hit in P.scan_text(P.doc_strings(s["data"])):
+                items.append({**hit, "sample": f"샘플 {k} ({s['filename']})"})
+        res.append({"form": f["name"], "category": S.CATEGORIES[f["category"]], "samples": len(f["samples"]), "findings": items})
+    return res
+
+
+@app.post("/api/packs/export")
+def pack_export(body: PackIn):
+    forms = _pack_forms(body.form_ids)
+    data = P.export_pack(forms)
+    name = forms[0]["name"] if len(forms) == 1 else f"양식 {len(forms)}개"
+    return _download(data, _safe_name(f"{name} 꾸러미").removesuffix(".hwpx") + ".gianpack")
+
+
+@app.post("/api/packs/import")
+async def pack_import(file: UploadFile = File(...)):
+    data = await file.read(P.MAX_PACK + 1)
+    try:
+        forms = P.read_pack(data, S.CATEGORIES)
+    except P.PackError as e:
+        raise HTTPException(400, str(e)) from e
+    S.backup("꾸러미가져오기전")
+    return {"imported": S.import_forms(forms)}
+
+
+@app.get("/api/packs/default")
+def pack_default_info():
+    return {"available": DEFAULT_PACK.exists()}
+
+
+@app.post("/api/packs/import-default")
+def pack_import_default():
+    if not DEFAULT_PACK.exists():
+        raise HTTPException(404, "기본 양식 꾸러미가 없습니다.")
+    try:
+        forms = P.read_pack(DEFAULT_PACK.read_bytes(), S.CATEGORIES)
+    except P.PackError as e:
+        raise HTTPException(400, str(e)) from e
+    S.backup("기본꾸러미가져오기전")
+    return {"imported": S.import_forms(forms)}
 
 
 class ToggleIn(BaseModel):

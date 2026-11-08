@@ -180,6 +180,35 @@ def delete_sample(form_id: int, sample_id: int) -> None:
             con.execute("DELETE FROM samples WHERE id=?", (sample_id,))
 
 
+def import_forms(forms: list[dict]) -> list[dict]:
+    """꾸러미에서 읽은 양식을 저장. 같은 분류·같은 이름의 빈 양식이 있으면 거기에 채운다."""
+    result = []
+    with _lock:
+        for f in forms:
+            with connect() as con:
+                row = con.execute(
+                    "SELECT f.id FROM forms f WHERE f.category=? AND f.name=? "
+                    "AND NOT EXISTS (SELECT 1 FROM samples s WHERE s.form_id=f.id) ORDER BY f.id LIMIT 1",
+                    (f["category"], f["name"])).fetchone()
+                names = {r["name"] for r in con.execute("SELECT name FROM forms WHERE category=?", (f["category"],))}
+            if row:
+                fid, name = row["id"], f["name"]
+            else:
+                name = f["name"]
+                k = 2
+                while name in names:
+                    name = f"{f['name']} ({k})"
+                    k += 1
+                fid = create_form(name, f["category"])
+            ids = [add_sample(fid, s["filename"], s["data"]) for s in f["samples"]]
+            ov = {"lines": f.get("lines", {})}
+            if f.get("base_sample_index") is not None:
+                ov["base_sample_id"] = ids[f["base_sample_index"]]
+            set_overrides(fid, ov)
+            result.append({"id": fid, "name": name, "category": f["category"], "samples": len(ids)})
+    return result
+
+
 # ───────── 생성 이력 ─────────
 
 def add_history(form_id: int, filename: str, data: bytes, payload: dict) -> int:
