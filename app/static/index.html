@@ -17,6 +17,7 @@
     <button type="submit">＋ 추가</button>
   </form>
   <div class="side-bottom">
+    <a class="btn ghost helpbtn" href="/help">📖 사용설명서</a>
     <button id="openSettings" class="ghost">⚙ 설정 · 백업 · 초기화</button>
     <button id="shutdown" class="ghost">⏻ 앱 종료</button>
   </div>
@@ -25,10 +26,11 @@
 <main id="main">
   <section id="empty" class="empty">
     <h1>기안 학습기에 오신 것을 환영합니다</h1>
+    <p><a class="btn" href="/help">📖 사용설명서 먼저 보기</a> <span class="muted small">컴퓨터가 익숙하지 않아도 그대로 따라 하면 됩니다.</span></p>
     <ol>
-      <li>왼쪽 아래에서 <b>새 양식</b>을 만드세요. (예: 물품 품의, 내부결재 기안)</li>
-      <li><b>샘플</b> 탭에서 같은 양식의 기안 .hwpx 파일을 2~5개 올리면 자동으로 학습합니다.</li>
-      <li><b>작성</b> 탭에서 내용을 채우고 <b>HWPX 만들기</b>를 누르면 같은 서식의 파일이 만들어집니다.</li>
+      <li>아래 <b>⭐ 기본 양식 꾸러미로 바로 시작하기</b>를 누르면 기안·품의·가정통신문 예시 양식이 들어옵니다.</li>
+      <li><b>✍ 작성</b> 화면에서 빈칸을 채우고 <b>📄 HWPX 만들기</b>를 누르면 한글 파일이 「다운로드」 폴더에 생깁니다.</li>
+      <li>내 학교 기안 모양으로 바꾸려면 <b>📁 샘플</b> 화면에 예전 기안 파일(.hwpx · .odt · .pdf)을 2~5개 올리세요.</li>
     </ol>
     <p id="welcomePack" hidden><button id="welcomeDefault" class="primary">⭐ 기본 양식 꾸러미로 바로 시작하기</button>
       <span class="muted small">기안·품의·가정통신문 예시 양식이 학습된 상태로 들어옵니다.</span></p>
@@ -45,6 +47,7 @@
         <button data-tab="learn">🧠 학습 내용</button>
         <button data-tab="samples">📁 샘플</button>
         <button data-tab="history">🕘 이력</button>
+        <a id="tabHelp" class="btn small" href="/help#write" title="이 화면 설명 보기">❓ 도움말</a>
       </nav>
     </header>
     <div id="notice" class="notice" hidden></div>
@@ -84,9 +87,13 @@
     </div>
 
     <div class="tab" id="tab-samples" hidden>
+      <div id="samplesStart" class="notice" hidden>
+        <b>처음이신가요?</b> 샘플이 없어도 <button id="samplesDefault" class="primary small">⭐ 기본 양식 꾸러미로 바로 시작하기</button>를 누르면 예시 양식으로 바로 쓸 수 있습니다.
+        <a href="/help#start">📖 설명 보기</a>
+      </div>
       <div id="drop" class="drop">
         <p><b>여기로 .hwpx · .odt · .pdf 파일을 끌어다 놓거나</b></p>
-        <label class="primary btn">파일 선택<input id="fileInput" type="file" accept=".hwpx,.hwp,.odt,.pdf,.gianpack" multiple hidden></label>
+        <label class="primary btn">파일 선택<input id="fileInput" type="file" accept=".hwpx,.hwp,.odt,.pdf,.ozd,.gianpack" multiple hidden></label>
         <p class="muted small">.odt(K-에듀파인 본문 내려받기)·.pdf는 글자와 번호 구조만 읽어 기본 서식으로 바꿔 학습합니다. 원래 글꼴·표 모양까지 살리려면 .hwpx 샘플을 하나 이상 함께 올려 주세요(서식은 .hwpx를 따릅니다).</p>
         <p class="muted small">다른 선생님께 받은 양식 꾸러미(.gianpack)도 여기에 끌어다 놓으면 가져옵니다.</p>
         <p class="muted small">같은 양식의 기안을 여러 개 올릴수록 고정 부분과 입력칸을 더 정확히 구분합니다. 구버전 .hwp는 한글에서 HWPX로 저장해 올려 주세요.</p>
@@ -110,7 +117,7 @@
 
 <dialog id="settings">
   <form method="dialog" class="dlg">
-    <h2>⚙ 설정 · 백업 · 초기화</h2>
+    <h2>⚙ 설정 · 백업 · 초기화 <a class="btn small" href="/help#share" title="설명 보기">❓</a></h2>
     <h3>실행 편의</h3>
     <div class="sys-row"><button type="button" id="mkDesktop">바탕화면 바로가기 만들기</button><span id="desktopState" class="muted small"></span></div>
     <div class="sys-row"><label><input type="checkbox" id="autostart"> 컴퓨터를 켜면 자동으로 실행 (창 없이 뒤에서 실행, 바로가기를 누르면 바로 열림)</label></div>

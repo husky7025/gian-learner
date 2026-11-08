@@ -144,6 +144,7 @@ function showTab(tab) {
   curTab = tab;
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
   for (const t of ["write", "learn", "samples", "history"]) $(`#tab-${t}`).hidden = t !== tab;
+  $("#tabHelp").href = "/help#" + tab;
   if (tab === "history") renderHistory();
   if (tab === "write") refreshPreview();
 }
@@ -363,6 +364,7 @@ function renderLearn() {
 
 // ───────── 샘플 탭 ─────────
 function renderSamples() {
+  $("#samplesStart").hidden = !(T.samples.length === 0 && !$("#packDefault").hidden);
   const ul = $("#sampleList"); ul.replaceChildren();
   if (!T.samples.length) ul.append(h("li", { class: "empty-row" }, "아직 올린 샘플이 없습니다"));
   for (const s of T.samples) {
@@ -550,6 +552,7 @@ async function exportPack(ids) {
 $("#packFile").addEventListener("change", (e) => { if (e.target.files[0]) importPack(e.target.files[0]); e.target.value = ""; });
 $("#packDefault").addEventListener("click", importDefault);
 $("#welcomeDefault").addEventListener("click", importDefault);
+$("#samplesDefault").addEventListener("click", importDefault);
 
 function showSys(st) {
   $("#desktopState").textContent = st.desktop ? "✔ 바탕화면에 있습니다" : "";
@@ -627,7 +630,9 @@ async function init() {
   if (!CATS[curCat]) curCat = "gian";
   await loadForms();
   const last = +localStorage.getItem("gian-last-form");
-  if (!curId && last && forms.some((f) => f.id === last)) await selectForm(last);
-  else if (!curId) await switchCat(curCat);
+  const fresh = !forms.some((f) => f.sample_count > 0);
+  if (!curId && last && forms.some((f) => f.id === last) && !fresh) await selectForm(last);
+  else if (!curId && !fresh) await switchCat(curCat);
+  // 처음 쓰는 경우(학습된 양식이 하나도 없음)에는 환영 화면을 보여 준다
 }
 init().catch((e) => toast("서버에 연결할 수 없습니다: " + e.message, true));
