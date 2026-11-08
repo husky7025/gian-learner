@@ -8,7 +8,7 @@
 </head>
 <body>
 <aside id="sidebar">
-  <div class="brand">📝 기안 학습기<small>이 컴퓨터에서만 작동</small></div>
+  <div class="brand">📝 기안 학습기<small>이 컴퓨터에서만 작동 · <span id="appVer"></span></small></div>
   <div id="catTabs" class="cat-tabs"></div>
   <div class="side-title">양식 목록</div>
   <ul id="formList"></ul>
@@ -85,8 +85,9 @@
 
     <div class="tab" id="tab-samples" hidden>
       <div id="drop" class="drop">
-        <p><b>여기로 .hwpx 파일을 끌어다 놓거나</b></p>
-        <label class="primary btn">파일 선택<input id="fileInput" type="file" accept=".hwpx,.hwp,.gianpack" multiple hidden></label>
+        <p><b>여기로 .hwpx · .odt · .pdf 파일을 끌어다 놓거나</b></p>
+        <label class="primary btn">파일 선택<input id="fileInput" type="file" accept=".hwpx,.hwp,.odt,.pdf,.gianpack" multiple hidden></label>
+        <p class="muted small">.odt(K-에듀파인 본문 내려받기)·.pdf는 글자와 번호 구조만 읽어 기본 서식으로 바꿔 학습합니다. 원래 글꼴·표 모양까지 살리려면 .hwpx 샘플을 하나 이상 함께 올려 주세요(서식은 .hwpx를 따릅니다).</p>
         <p class="muted small">다른 선생님께 받은 양식 꾸러미(.gianpack)도 여기에 끌어다 놓으면 가져옵니다.</p>
         <p class="muted small">같은 양식의 기안을 여러 개 올릴수록 고정 부분과 입력칸을 더 정확히 구분합니다. 구버전 .hwp는 한글에서 HWPX로 저장해 올려 주세요.</p>
       </div>

@@ -430,7 +430,8 @@ def learn(sample_bytes: list[bytes], sample_ids: list, overrides: dict | None = 
     # 기준 샘플: 다른 샘플과 항목 구성이 가장 비슷한 것
     sets = [_labelset(a) for a in ans]
     scores = [sum(_jaccard(sets[i], sets[j]) for j in range(len(docs)) if j != i) for i in range(len(docs))]
-    bi = max(range(len(docs)), key=lambda i: (scores[i], -i))
+    real = [not is_converted(d) for d in docs]  # 원본 hwpx 샘플을 기준 서식으로 우선
+    bi = max(range(len(docs)), key=lambda i: (real[i], scores[i], -i))
     if overrides.get("base_sample_id") in sample_ids:
         bi = sample_ids.index(overrides["base_sample_id"])
     base, ban = docs[bi], ans[bi]
@@ -695,12 +696,7 @@ def generate(base_bytes: bytes, tpl: dict, data: dict) -> tuple[bytes, list[str]
     if not plan:
         raise HwpxError("생성할 내용이 없습니다.")
 
-    ids = [int(x) for x in doc.root.xpath("//@id") if str(x).isdigit()]
-    counter = [(max(ids) + 1) if ids and max(ids) < 4_000_000_000 else 2_100_000_000]
-
-    def new_id() -> str:
-        counter[0] += 1
-        return str(counter[0])
+    new_id = _new_id_factory(doc)
 
     # 표 칸 입력값 반영 (원본 문단에 먼저 적용한 뒤 복사)
     specs = {c["key"]: c for t in tpl.get("tables", []) for row in t["rows"] for c in row if c["type"] == "field"}
@@ -716,6 +712,31 @@ def generate(base_bytes: bytes, tpl: dict, data: dict) -> tuple[bytes, list[str]
                     if val != cell["text"]:
                         _set_cell_text(cell["el"], val, new_id)
 
+    return _assemble(doc, plan, new_id)
+
+
+def _new_id_factory(doc: Doc):
+    ids = [int(x) for x in doc.root.xpath("//@id") if str(x).isdigit()]
+    counter = [(max(ids) + 1) if ids and max(ids) < 4_000_000_000 else 2_100_000_000]
+
+    def new_id() -> str:
+        counter[0] += 1
+        return str(counter[0])
+    return new_id
+
+
+def from_lines(base_bytes: bytes, lines: list[str], mark: str = "") -> bytes:
+    """글자 줄 목록으로 기본 서식의 hwpx를 만든다 (ODT·PDF 샘플 변환용)."""
+    doc = load_doc(base_bytes)
+    out, _ = _assemble(doc, [(0, line, "line") for line in lines], _new_id_factory(doc), mark)
+    return out
+
+
+def is_converted(doc: Doc, mark: str = "gian-learner:converted") -> bool:
+    return mark.encode() in doc.files.get("Contents/content.hpf", b"")
+
+
+def _assemble(doc: Doc, plan, new_id, mark: str = "") -> tuple[bytes, list[str]]:
     p0 = doc.paras[0]
     sec_runs = _section_runs(p0)
     new_ps, preview = [], []
@@ -751,6 +772,12 @@ def generate(base_bytes: bytes, tpl: dict, data: dict) -> tuple[bytes, list[str]
     if "Preview/PrvImage.png" in files:  # 원본 샘플의 첫 장 그림이 남지 않게
         from .packs import blank_png
         files["Preview/PrvImage.png"] = blank_png()
+    if mark and "Contents/content.hpf" in files:  # 변환 샘플 표시(기준 서식으로 고르지 않게)
+        hpf = etree.fromstring(files["Contents/content.hpf"], etree.XMLParser(resolve_entities=False, no_network=True))
+        for el in hpf.iter("{http://www.idpf.org/2007/opf/}meta"):
+            if el.get("name") == "description":
+                el.text = mark
+        files["Contents/content.hpf"] = etree.tostring(hpf, xml_declaration=True, encoding="UTF-8", standalone=True)
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:

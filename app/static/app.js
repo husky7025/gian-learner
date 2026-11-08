@@ -389,6 +389,7 @@ async function upload(files) {
     const r = await getJSON(`/api/forms/${curId}/samples`, { method: "POST", body: fd });
     msg.replaceChildren(
       r.added.length ? h("p", { class: "ok" }, `✔ ${r.added.length}개를 학습했습니다.`) : null,
+      r.converted && r.converted.length ? h("p", { class: "muted small" }, `ℹ ${r.converted.length}개는 글자·번호 구조만 읽어 기본 서식으로 바꿨습니다: ${r.converted.join(", ")}`) : null,
       ...r.errors.map((e) => h("p", { class: "err" }, "✖ " + e)));
     await loadForms(); await loadTemplate();
   } catch (e) { msg.replaceChildren(h("p", { class: "err" }, "✖ " + e.message)); }
@@ -616,7 +617,7 @@ $("#insMoney").addEventListener("click", () => {
 });
 
 async function init() {
-  try { const info = await getJSON("/api/info"); if (info.categories) CATS = info.categories; } catch (_) {}
+  try { const info = await getJSON("/api/info"); if (info.categories) CATS = info.categories; $("#appVer").textContent = "v" + info.version; } catch (_) {}
   try {
     const d = await getJSON("/api/packs/default");
     $("#packDefault").hidden = !d.available;

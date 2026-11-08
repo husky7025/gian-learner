@@ -5,3 +5,6 @@ __pycache__/
 *.hwpx
 *.hwp
 data/
+dist/
+build/
+*.spec

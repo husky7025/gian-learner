@@ -2,3 +2,4 @@ fastapi>=0.110
 uvicorn>=0.29
 lxml>=5.0
 python-multipart>=0.0.9
+pypdf>=4.0
