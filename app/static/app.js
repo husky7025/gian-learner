@@ -425,6 +425,8 @@ async function openSettings() {
   const info = await getJSON("/api/info");
   $("#dataDir").textContent = info.data_dir;
   getJSON("/api/system").then(showSys).catch(() => {});
+  getJSON("/api/settings").then((st) => { $("#updCheck").checked = !!st.update_check; }).catch(() => {});
+  $("#updState").textContent = "";
   renderPackForms();
   const ul = $("#backupList"); ul.replaceChildren();
   const list = await getJSON("/api/backups");
@@ -619,6 +621,44 @@ $("#insMoney").addEventListener("click", () => {
   insertText(`금${n.toLocaleString("ko-KR")}원(금${korMoney(n)}원)`);
 });
 
+// ───────── 새 버전 알림 ─────────
+function showUpdate(r) {
+  const bar = $("#updateBar");
+  const dismissed = localStorage.getItem("gian-update-later") === r.latest;
+  bar.hidden = !(r.enabled && r.newer) || dismissed;
+  if (r.newer) {
+    $("#updVer").textContent = "v" + r.latest; $("#updCur").textContent = "v" + r.current;
+    $("#updLink").href = r.url && r.url.startsWith("https://github.com/") ? r.url : r.page;
+  }
+}
+async function checkUpdate(force = false) {
+  try {
+    const r = await getJSON("/api/update-check" + (force ? "?force=true" : ""));
+    showUpdate(r);
+    return r;
+  } catch (_) { return null; }
+}
+$("#updLater").addEventListener("click", () => {
+  localStorage.setItem("gian-update-later", ($("#updVer").textContent || "").replace(/^v/, ""));
+  $("#updateBar").hidden = true;
+});
+$("#updCheck").addEventListener("change", async (e) => {
+  try { await api("/api/settings", { method: "PUT", json: { update_check: e.target.checked } });
+    toast(e.target.checked ? "새 버전이 나오면 알려 드립니다." : "새 버전 알림을 껐습니다.");
+    if (!e.target.checked) $("#updateBar").hidden = true; else checkUpdate(true);
+  } catch (err) { e.target.checked = !e.target.checked; toast(err.message, true); }
+});
+$("#updNow").addEventListener("click", async () => {
+  $("#updState").textContent = "확인하는 중…";
+  localStorage.removeItem("gian-update-later");
+  const r = await checkUpdate(true);
+  $("#updState").textContent = !r ? "확인하지 못했습니다."
+    : !r.enabled ? "알림이 꺼져 있습니다."
+    : r.error ? "인터넷에 연결할 수 없어 확인하지 못했습니다."
+    : r.newer ? `새 버전 v${r.latest}이 있습니다. 화면 위의 안내를 보세요.`
+    : `지금 최신 버전(v${r.current})을 쓰고 있습니다.`;
+});
+
 async function init() {
   try { const info = await getJSON("/api/info"); if (info.categories) CATS = info.categories; $("#appVer").textContent = "v" + info.version; } catch (_) {}
   try {
@@ -630,6 +670,7 @@ async function init() {
   if (!CATS[curCat]) curCat = "gian";
   await loadForms();
   const last = +localStorage.getItem("gian-last-form");
+  checkUpdate();
   const fresh = !forms.some((f) => f.sample_count > 0);
   if (!curId && last && forms.some((f) => f.id === last) && !fresh) await selectForm(last);
   else if (!curId && !fresh) await switchCat(curCat);

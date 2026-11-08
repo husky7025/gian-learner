@@ -11,3 +11,4 @@
 - 버전: `app/version.py` = 태그 vX.Y.Z (Actions가 불일치 시 실패). 출시는 `.github/workflows/release.yml`(windows-latest, PyInstaller onedir --windowed, exe 실행 검사 후 gh release create).
 - ODT·PDF 샘플은 `app/convert.py`로 기본 꾸러미 품의 예시 서식의 hwpx로 변환(content.hpf description=gian-learner:converted). 기준 서식은 원본 hwpx 샘플을 우선.
 - PDF는 pypdf(BSD) 사용. PyMuPDF는 AGPL이라 쓰지 않음.
+- 새 버전 알림: `app/updates.py`가 GitHub releases/latest의 tag_name만 조회(6시간 캐시, settings.json의 update_check로 끔). 시험할 때는 GIAN_UPDATE_URL로 가짜 응답 주소 지정.
