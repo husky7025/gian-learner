@@ -176,6 +176,11 @@ async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
         if low.endswith(".hwp"):
             errors.append(f"{name}: 구버전 .hwp 파일입니다. 한글에서 '다른 이름으로 저장 → HWPX'로 바꿔 올려 주세요.")
             continue
+        if low.endswith(".ozd"):
+            errors.append(f"{name}: .ozd(오즈 문서)는 암호화된 형식이라 직접 읽을 수 없습니다. "
+                          "K-에듀파인에서 문서를 연 뒤 오즈 뷰어의 [PDF로 저장](또는 인쇄 → 'Microsoft Print to PDF')으로 "
+                          "PDF를 만들어 올려 주세요.")
+            continue
         if low.endswith((".odt", ".pdf")):
             try:
                 data = C.to_hwpx(name, data)
@@ -398,6 +403,11 @@ def autostart(body: ToggleIn):
 def shutdown():
     threading.Timer(0.5, lambda: os._exit(0)).start()
     return {"ok": True}
+
+
+@app.get("/help")
+def help_page():
+    return FileResponse(STATIC / "help.html")
 
 
 @app.get("/")

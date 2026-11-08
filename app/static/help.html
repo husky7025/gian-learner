@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>기안 학습기 사용설명서</title>
+<style>
+  :root { --primary: #2f6fed; --line: #e3e6eb; --muted: #6b7280; --soft: #f2f6ff; --warn: #fff4d6; --ok: #e8f5e9; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Malgun Gothic", "맑은 고딕", system-ui, sans-serif; font-size: 17px; line-height: 1.85; color: #1f2430; background: #f6f7f9; }
+  header { position: sticky; top: 0; z-index: 5; background: #1f2633; color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 14px; }
+  header h1 { font-size: 20px; margin: 0; flex: 1; }
+  header a.back { background: var(--primary); color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; }
+  .wrap { display: grid; grid-template-columns: 250px 1fr; gap: 24px; max-width: 1200px; margin: 0 auto; padding: 20px; }
+  nav.toc { position: sticky; top: 76px; align-self: start; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 15px; }
+  nav.toc a { display: block; color: #1f2430; text-decoration: none; padding: 3px 6px; border-radius: 6px; }
+  nav.toc a:hover { background: var(--soft); color: var(--primary); }
+  main section { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px 28px; margin-bottom: 20px; scroll-margin-top: 80px; }
+  h2 { font-size: 23px; margin: 0 0 12px; color: var(--primary); }
+  h3 { font-size: 19px; margin: 20px 0 6px; }
+  ol.steps { counter-reset: s; list-style: none; padding: 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 10px 12px 10px 56px; margin: 8px 0; background: #fafbfc; border-radius: 10px; border: 1px solid var(--line); }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 12px; top: 10px; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; text-align: center; line-height: 32px; }
+  .btn { display: inline-block; background: #fff; border: 1px solid #c5cad3; border-radius: 6px; padding: 0 8px; font-size: 15px; white-space: nowrap; }
+  .btn.blue { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .tip, .warn, .ok { border-radius: 10px; padding: 10px 14px; margin: 10px 0; }
+  .tip { background: var(--soft); border-left: 5px solid var(--primary); }
+  .warn { background: var(--warn); border-left: 5px solid #e0a800; }
+  .ok { background: var(--ok); border-left: 5px solid #2e7d32; }
+  kbd { background: #eee; border: 1px solid #ccc; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; font-size: 14px; }
+  /* 화면 그림 */
+  .mock { display: grid; grid-template-columns: 170px 1fr; gap: 0; border: 2px solid #1f2633; border-radius: 10px; overflow: hidden; font-size: 14px; line-height: 1.5; margin: 12px 0; max-width: 760px; }
+  .mock .side { background: #1f2633; color: #e8ebf0; padding: 10px; }
+  .mock .main { padding: 10px; background: #f6f7f9; }
+  .mock .box { border: 2px dashed #9aa3b2; border-radius: 8px; padding: 6px 8px; margin: 5px 0; position: relative; background: #fff; color: #1f2430; }
+  .mock .side .box { background: #2b3446; color: #e8ebf0; }
+  .mock .num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #e64a19; color: #fff; text-align: center; line-height: 24px; font-weight: 700; margin-right: 6px; font-size: 13px; }
+  .mock .row { display: flex; gap: 8px; }
+  .mock .row .box { flex: 1; }
+  table.terms { border-collapse: collapse; width: 100%; }
+  table.terms td { border-bottom: 1px solid var(--line); padding: 8px; vertical-align: top; }
+  table.terms td:first-child { font-weight: 700; white-space: nowrap; width: 150px; }
+  details { border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; margin: 8px 0; background: #fafbfc; }
+  details summary { cursor: pointer; font-weight: 700; }
+  details[open] summary { margin-bottom: 6px; color: var(--primary); }
+  .big { font-size: 19px; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; } }
+  @media print { header, nav.toc { display: none; } .wrap { display: block; } section { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>📖 기안 학습기 사용설명서</h1>
+  <a class="back" href="/">← 앱으로 돌아가기</a>
+</header>
+<div class="wrap">
+<nav class="toc">
+  <b>차례</b>
+  <a href="#what">1. 이 프로그램은?</a>
+  <a href="#screen">2. 화면 둘러보기</a>
+  <a href="#start">3. 처음 시작하기</a>
+  <a href="#write">4. 기안 만들기</a>
+  <a href="#file">5. 만든 파일 찾기·쓰기</a>
+  <a href="#samples">6. 내 기안으로 학습시키기</a>
+  <a href="#learn">7. 학습이 이상할 때</a>
+  <a href="#helper">8. 날짜·금액 쉽게 넣기</a>
+  <a href="#history">9. 예전에 만든 기안 다시 쓰기</a>
+  <a href="#share">10. 다른 선생님과 나누기</a>
+  <a href="#onoff">11. 켜고 끄기</a>
+  <a href="#faq">12. 자주 묻는 질문</a>
+  <a href="#terms">13. 낱말 풀이</a>
+</nav>
+
+<main>
+<section id="what">
+  <h2>1. 이 프로그램은 무엇인가요?</h2>
+  <p class="big">예전에 쓴 기안 파일 몇 개를 보여 주면, 그 <b>모양(양식)을 스스로 익혀서</b>,
+    새 내용만 적으면 <b>똑같은 모양의 한글 파일(.hwpx)</b>을 만들어 주는 프로그램입니다.</p>
+  <div class="tip">💡 예를 들어 「물품 구입 품의」를 여러 번 쓰셨다면, 그 파일들을 올려 두고
+    다음부터는 <b>건명·금액·품목만 적으면</b> 번호, 줄 맞춤, 「붙임」, 「끝.」까지 알아서 맞춰 줍니다.</div>
+  <div class="ok">🔒 이 프로그램은 <b>이 컴퓨터 안에서만</b> 작동합니다. 기안 내용이 인터넷으로 나가지 않고,
+    다른 사람이 볼 수 없습니다. 껐다 켜도 익힌 내용은 그대로 남아 있습니다.</div>
+</section>
+
+<section id="screen">
+  <h2>2. 화면 둘러보기</h2>
+  <p>화면은 크게 <b>왼쪽 어두운 부분</b>과 <b>오른쪽 넓은 부분</b>으로 나뉩니다.</p>
+  <div class="mock">
+    <div class="side">
+      <div class="box"><span class="num">1</span>기안 · 품의 · 가정통신문</div>
+      <div class="box"><span class="num">2</span>양식 목록</div>
+      <div class="box"><span class="num">6</span>📖 사용설명서<br>⚙ 설정 · 백업<br>⏻ 앱 종료</div>
+    </div>
+    <div class="main">
+      <div class="box"><span class="num">3</span>✍ 작성 &nbsp; 🧠 학습 내용 &nbsp; 📁 샘플 &nbsp; 🕘 이력</div>
+      <div class="row">
+        <div class="box"><span class="num">4</span>내용을 적는 곳<br><br><span class="btn blue">📄 HWPX 만들기</span></div>
+        <div class="box"><span class="num">5</span>미리보기<br>(완성될 모습)</div>
+      </div>
+    </div>
+  </div>
+  <ol>
+    <li><b>분류 탭</b> — 기안, 품의, 가정통신문 중 무엇을 만들지 고릅니다.</li>
+    <li><b>양식 목록</b> — 그 분류 안의 양식들입니다. (예: 물품 품의, 강사비 품의) 누르면 그 양식이 열립니다.</li>
+    <li><b>화면 탭</b> — <b>✍ 작성</b>(내용 적기), <b>🧠 학습 내용</b>(익힌 모양 확인), <b>📁 샘플</b>(예전 기안 올리기), <b>🕘 이력</b>(예전에 만든 파일)</li>
+    <li><b>내용 적는 곳</b> — 빈칸에 내용을 적습니다.</li>
+    <li><b>미리보기</b> — 적은 내용이 어떻게 완성될지 바로바로 보여 줍니다.</li>
+    <li><b>아래 버튼들</b> — 사용설명서, 설정·백업, 앱 끄기</li>
+  </ol>
+  <div class="tip">💡 화면 곳곳의 <span class="btn">❓</span> 버튼을 누르면 그 화면의 설명으로 바로 옵니다.</div>
+</section>
+
+<section id="start">
+  <h2>3. 처음 시작하기</h2>
+  <ol class="steps">
+    <li>프로그램을 처음 켜면 가운데에 <span class="btn blue">⭐ 기본 양식 꾸러미로 바로 시작하기</span> 버튼이 보입니다. 이 버튼을 <b>한 번</b> 누르세요.</li>
+    <li>기안 · 품의 · 가정통신문 예시 양식이 들어옵니다. 이제 바로 기안을 만들어 볼 수 있습니다.</li>
+    <li>예시 양식이 내 기안과 모양이 다르다면, <a href="#samples">6. 내 기안으로 학습시키기</a>를 따라 내 기안을 올려 주세요.</li>
+  </ol>
+  <div class="tip">💡 버튼이 안 보이면 왼쪽 아래 <span class="btn">⚙ 설정 · 백업 · 초기화</span> → <span class="btn">⭐ 기본 양식 꾸러미 불러오기</span>를 누르셔도 됩니다.</div>
+</section>
+
+<section id="write">
+  <h2>4. 기안 만들기</h2>
+  <ol class="steps">
+    <li>왼쪽 위에서 <b>기안 / 품의 / 가정통신문</b> 중 하나를 누릅니다.</li>
+    <li>그 아래 <b>양식 목록</b>에서 쓸 양식을 누릅니다. (파랗게 표시되면 선택된 것입니다)</li>
+    <li>오른쪽 위 <span class="btn">✍ 작성</span>이 눌려 있는지 확인합니다.</li>
+    <li><b>빈칸을 마우스로 한 번 누른 뒤</b> 내용을 적습니다. 회색 글씨 「예) …」는 예전 기안에 있던 예시이니 참고만 하세요.
+      <ul>
+        <li><b>회색 줄</b>은 매번 똑같이 들어가는 부분이라 고칠 필요가 없습니다.</li>
+        <li><b>노란 칸</b>은 직접 적는 부분입니다.</li>
+        <li>번호(1. 가. 1))는 <b>자동</b>으로 붙습니다. 직접 적지 마세요.</li>
+      </ul>
+    </li>
+    <li>오른쪽 <b>미리보기</b>에서 완성될 모습을 확인합니다.</li>
+    <li>아래의 <span class="btn blue">📄 HWPX 만들기</span>를 누르면 파일이 만들어집니다. → <a href="#file">5. 만든 파일 찾기</a></li>
+  </ol>
+  <h3>항목을 더하거나 빼고 싶을 때</h3>
+  <p>각 줄 오른쪽의 작은 버튼을 씁니다.</p>
+  <table class="terms">
+    <tr><td><span class="btn">＋</span></td><td>바로 아래에 같은 단계의 항목을 하나 더 만듭니다.</td></tr>
+    <tr><td><span class="btn">✕</span></td><td>그 항목을 지웁니다.</td></tr>
+    <tr><td><span class="btn">↑</span> <span class="btn">↓</span></td><td>항목 순서를 위·아래로 옮깁니다.</td></tr>
+    <tr><td><span class="btn">⇥</span></td><td>한 단계 <b>안쪽</b>으로 넣습니다. (예: 「2.」 → 「가.」)</td></tr>
+    <tr><td><span class="btn">⇤</span></td><td>한 단계 <b>바깥쪽</b>으로 뺍니다. (예: 「가.」 → 「2.」)</td></tr>
+  </table>
+  <p>목록 맨 아래의 <span class="btn">＋ 항목 추가</span>, <span class="btn">＋ 하위 항목</span>으로도 더할 수 있고,
+    <b>「다른 샘플의 항목」</b> 버튼(예: <span class="btn">＋ 기간</span>)을 누르면 예전 기안에 있던 항목이 바로 들어옵니다.</p>
+  <h3>붙임</h3>
+  <p><b>붙임</b> 칸에 「견적서 1부」처럼 적으면 됩니다. 여러 개면 번호(1. 2.)와 맨 끝의 「끝.」이 <b>자동</b>으로 붙습니다.</p>
+  <h3>표가 있는 양식(가정통신문 등)</h3>
+  <p>표가 실제 모양대로 보이고, <b>노란 칸</b>에 바로 적으면 됩니다. 칸 안에서 <kbd>Enter</kbd>를 누르면 줄이 바뀝니다.</p>
+  <div class="ok">💾 적는 내용은 <b>자동으로 임시저장</b>됩니다. 실수로 창을 닫아도 다시 열면 그대로 있습니다.
+    처음부터 다시 쓰려면 <span class="btn">처음 상태로</span>를 누르세요.</div>
+</section>
+
+<section id="file">
+  <h2>5. 만든 파일 찾기 · 쓰기</h2>
+  <ol class="steps">
+    <li><span class="btn blue">📄 HWPX 만들기</span>를 누르면 파일이 <b>「다운로드」 폴더</b>에 저장됩니다.
+      브라우저 오른쪽 위에 내려받기 표시(⬇)가 잠깐 나타납니다.</li>
+    <li>파일을 찾으려면 키보드에서 <kbd>Ctrl</kbd> + <kbd>J</kbd>를 누르세요. 내려받은 파일 목록이 열립니다. 파일 이름을 누르면 <b>한글</b>로 열립니다.</li>
+    <li>또는 바탕화면 아래 <b>파일 탐색기(노란 폴더 모양)</b> → 왼쪽의 <b>다운로드</b>를 누르세요.</li>
+  </ol>
+  <h3>K-에듀파인에 붙여 넣기</h3>
+  <ol class="steps">
+    <li>만든 파일을 <b>한글</b>로 엽니다.</li>
+    <li><kbd>Ctrl</kbd> + <kbd>A</kbd> (전체 선택) → <kbd>Ctrl</kbd> + <kbd>C</kbd> (복사)</li>
+    <li>K-에듀파인 기안 작성 화면의 본문을 누르고 <kbd>Ctrl</kbd> + <kbd>V</kbd> (붙여 넣기)</li>
+  </ol>
+  <div class="tip">💡 파일 이름은 「건명」이나 「제목」으로 자동으로 정해집니다. 바꾸고 싶으면 작성 화면 맨 위 <b>파일 이름</b> 칸에 적으세요.</div>
+</section>
+
+<section id="samples">
+  <h2>6. 내 기안으로 학습시키기</h2>
+  <p>프로그램이 내 기안 모양을 익히려면, <b>같은 종류의 예전 기안 파일</b>을 2~5개 보여 주면 됩니다. 이 파일을 「샘플」이라고 부릅니다.</p>
+  <ol class="steps">
+    <li>왼쪽에서 분류(예: <b>품의</b>)와 양식을 고릅니다. 새 양식이 필요하면 왼쪽 아래 칸에 이름(예: 물품 품의)을 적고 <span class="btn">＋ 추가</span>를 누르세요.</li>
+    <li>오른쪽 위 <span class="btn">📁 샘플</span>을 누릅니다.</li>
+    <li><span class="btn blue">파일 선택</span>을 누르고, 예전 기안 파일을 고른 뒤 <b>열기</b>를 누릅니다.
+      여러 개를 한 번에 고르려면 <kbd>Ctrl</kbd>을 누른 채 파일을 하나씩 누르세요.</li>
+    <li>「✔ ○개를 학습했습니다」가 나오면 끝입니다. <span class="btn">✍ 작성</span>으로 가서 써 보세요.</li>
+  </ol>
+  <div class="tip">💡 <b>끌어다 놓기</b>도 됩니다: 파일 탐색기에서 파일을 마우스로 꾹 누른 채 끌고 와서, 점선 상자 위에서 손을 떼면 됩니다.</div>
+  <h3>올릴 수 있는 파일</h3>
+  <table class="terms">
+    <tr><td>.hwpx</td><td>✅ <b>가장 좋습니다.</b> 글꼴·줄 간격·표 모양까지 그대로 익힙니다.</td></tr>
+    <tr><td>.odt</td><td>✅ K-에듀파인에서 내려받은 「본문」 파일. 글자와 번호 모양만 익히고, 서식은 기본 모양이 됩니다.</td></tr>
+    <tr><td>.pdf</td><td>✅ 글자와 번호 모양만 익힙니다. (스캔한 그림 PDF는 안 됩니다)</td></tr>
+    <tr><td>.hwp</td><td>⚠ 옛날 한글 파일. 한글에서 열고 <b>파일 → 다른 이름으로 저장 → 파일 형식 「HWPX」</b>로 저장해서 올려 주세요.</td></tr>
+    <tr><td>.ozd</td><td>⚠ 지출품의서 같은 오즈 문서. K-에듀파인에서 문서를 열고 <b>PDF로 저장</b>(또는 인쇄 → 「Microsoft Print to PDF」)해서 그 PDF를 올려 주세요.</td></tr>
+  </table>
+  <div class="warn">⚠ <b>종류가 다른 기안을 섞지 마세요.</b> 「물품 품의」와 「강사비 품의」처럼 항목이 다르면 양식을 따로 만들어 올리는 것이 좋습니다.
+    섞여 있으면 화면 위에 주의 문구가 나옵니다.</div>
+  <div class="tip">💡 .odt·.pdf만 올리면 서식이 기본 모양이 됩니다. <b>.hwpx를 하나라도 같이 올리면</b> 그 서식을 따릅니다.</div>
+</section>
+
+<section id="learn">
+  <h2>7. 학습이 이상할 때</h2>
+  <h3>고칠 부분이 회색(고정)으로 나올 때 / 그 반대일 때</h3>
+  <ol class="steps">
+    <li><span class="btn">🧠 학습 내용</span>을 누릅니다.</li>
+    <li>줄 오른쪽의 <span class="btn">입력칸으로</span> / <span class="btn">고정으로</span> 버튼을 누르면 바뀝니다.</li>
+    <li>표는 <b>칸을 직접 누르면</b> 고정 ↔ 입력칸이 바뀝니다.</li>
+  </ol>
+  <h3>엉뚱한 샘플을 올렸을 때</h3>
+  <p><span class="btn">📁 샘플</span>에서 그 파일 옆의 <span class="btn">빼기</span>를 누르세요. 남은 샘플로 다시 익힙니다.</p>
+  <h3>처음부터 다시 하고 싶을 때 (초기화)</h3>
+  <p><span class="btn">📁 샘플</span> 맨 아래의 <span class="btn" style="background:#d64545;color:#fff">이 양식 학습 초기화</span>를 누르세요.</p>
+  <div class="ok">🛟 <b>걱정하지 마세요.</b> 초기화나 삭제를 하기 직전 상태는 <b>자동으로 백업</b>됩니다.
+    <span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>백업 목록</b>에서 <span class="btn">이 상태로 되돌리기</span>를 누르면 돌아갑니다.</div>
+</section>
+
+<section id="helper">
+  <h2>8. 날짜 · 금액 쉽게 넣기</h2>
+  <p>작성 화면 위쪽의 <b>입력 도우미</b>를 쓰면 공문서 모양에 맞게 넣어 줍니다.</p>
+  <ol class="steps">
+    <li>먼저 날짜나 금액을 넣을 <b>빈칸을 한 번 누릅니다.</b> (깜빡이는 막대가 생기는 곳에 들어갑니다)</li>
+    <li><b>날짜</b>: 날짜 칸에서 날짜를 고르고 <span class="btn">📅 날짜 넣기</span> → 「2026. 11. 8.(일)」 모양으로 들어갑니다. <span class="btn">오늘</span>은 오늘 날짜를 넣습니다.</li>
+    <li><b>금액</b>: 금액 칸에 숫자만(예: 113560) 적고 <span class="btn">💰 금액 넣기</span> → 「금113,560원(금일십일만삼천오백육십원)」으로 들어갑니다.</li>
+  </ol>
+</section>
+
+<section id="history">
+  <h2>9. 예전에 만든 기안 다시 쓰기</h2>
+  <ol class="steps">
+    <li><span class="btn">🕘 이력</span>을 누르면 이 양식으로 만든 파일 목록이 나옵니다.</li>
+    <li><span class="btn">다시 받기</span>: 그 파일을 다시 내려받습니다.</li>
+    <li><span class="btn">불러오기</span>: 그때 적은 내용을 작성 화면으로 가져옵니다. 날짜·금액만 바꿔서 새로 만들 때 편합니다.</li>
+  </ol>
+</section>
+
+<section id="share">
+  <h2>10. 다른 선생님과 나누기 (양식 꾸러미)</h2>
+  <p>잘 익힌 양식을 <b>파일 하나(.gianpack)</b>로 만들어 다른 선생님께 드릴 수 있습니다. 받은 선생님은 샘플을 모으지 않아도 바로 쓸 수 있습니다.</p>
+  <h3>보내는 선생님</h3>
+  <ol class="steps">
+    <li><span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>📤 꾸러미 내보내기</b>를 누릅니다.</li>
+    <li>나눌 양식에 체크(☑)하고 <span class="btn blue">개인정보 검사하기</span>를 누릅니다.</li>
+    <li>전화번호·이름 같은 개인정보로 보이는 글자가 있으면 <b>빨간 글씨</b>로 보여 줍니다. 괜찮으면 <span class="btn">내보내기</span>를 누릅니다.</li>
+    <li>「다운로드」 폴더에 생긴 .gianpack 파일을 메신저 등으로 보냅니다.</li>
+  </ol>
+  <div class="warn">⚠ 개인정보가 나오면, 그 샘플을 한글에서 고쳐 저장한 뒤 다시 올리고 내보내는 것이 안전합니다.
+    (작성자 이름·미리보기 그림·파일 이름은 자동으로 지워집니다)</div>
+  <h3>받는 선생님</h3>
+  <p><span class="btn">⚙ 설정 · 백업 · 초기화</span> → <span class="btn">📥 꾸러미 가져오기</span> → 받은 파일 선택. 또는 <span class="btn">📁 샘플</span> 상자에 끌어다 놓으세요.</p>
+</section>
+
+<section id="onoff">
+  <h2>11. 켜고 끄기</h2>
+  <h3>켜기</h3>
+  <p>「기안학습기」 폴더의 <b>기안학습기.exe</b>를 두 번 누르면 브라우저에 화면이 열립니다.</p>
+  <h3>더 편하게 (한 번만 해 두면 됩니다)</h3>
+  <ol class="steps">
+    <li><span class="btn">⚙ 설정 · 백업 · 초기화</span> → <span class="btn">바탕화면 바로가기 만들기</span> → 다음부터는 <b>바탕화면의 「기안 학습기」 아이콘</b>을 두 번 누르면 됩니다.</li>
+    <li>☑ <b>컴퓨터를 켜면 자동으로 실행</b>에 체크하면, 컴퓨터를 켤 때 뒤에서 미리 켜져 있어 아이콘을 누르면 바로 열립니다.</li>
+  </ol>
+  <h3>끄기</h3>
+  <p>왼쪽 아래 <span class="btn">⏻ 앱 종료</span>를 누르세요. 브라우저 탭만 닫으면 프로그램은 뒤에서 계속 켜져 있습니다. (켜져 있어도 문제는 없습니다)</p>
+</section>
+
+<section id="faq">
+  <h2>12. 자주 묻는 질문</h2>
+  <details><summary>파란 「Windows의 PC 보호」 창이 떠요.</summary>
+    개인이 만든 프로그램이라 나오는 안내입니다. <b>추가 정보</b>를 누른 뒤 <b>실행</b>을 누르세요. 처음 한 번만 나옵니다.</details>
+  <details><summary>아이콘을 눌렀는데 화면이 안 열려요.</summary>
+    10초쯤 기다려 보세요. 그래도 안 열리면 브라우저(크롬·엣지) 주소창에 <b>127.0.0.1:8765</b> 를 적고 <kbd>Enter</kbd>를 누르세요.
+    그래도 안 되면 컴퓨터를 다시 켠 뒤 아이콘을 눌러 주세요.</details>
+  <details><summary>만든 파일이 어디 있는지 모르겠어요.</summary>
+    브라우저에서 <kbd>Ctrl</kbd> + <kbd>J</kbd>를 누르면 내려받은 파일 목록이 나옵니다. → <a href="#file">5. 만든 파일 찾기</a></details>
+  <details><summary>컴퓨터를 끄면 익힌 내용이 없어지나요?</summary>
+    아니요. 이 컴퓨터에 저장되어 있어서 껐다 켜도, 새 버전으로 바꿔도 그대로 남습니다. 단, <b>다른 컴퓨터</b>에서는 따로 익혀야 합니다. (꾸러미로 옮길 수 있습니다 → <a href="#share">10번</a>)</details>
+  <details><summary>제 기안 내용을 다른 사람이 볼 수 있나요?</summary>
+    아니요. 이 프로그램은 <b>이 컴퓨터 안에서만</b> 작동하고 인터넷으로 내용을 보내지 않습니다. 같은 학교 다른 컴퓨터에서도 접속할 수 없습니다.</details>
+  <details><summary>번호가 이상하게 붙어요. (예: 「가.」가 「2.」로 나와요)</summary>
+    그 줄 오른쪽의 <span class="btn">⇥</span>(안쪽으로) / <span class="btn">⇤</span>(바깥쪽으로)를 눌러 단계를 맞춰 주세요. 번호는 단계에 따라 자동으로 바뀝니다.</details>
+  <details><summary>잘못 눌러서 지웠어요. 되돌릴 수 있나요?</summary>
+    초기화·삭제 직전 상태는 자동으로 백업됩니다. <span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>백업 목록</b> → <span class="btn">이 상태로 되돌리기</span>.
+    작성 중인 글은 자동 임시저장되어 있습니다.</details>
+  <details><summary>새 버전은 어떻게 받나요?</summary>
+    인터넷 주소 <b>github.com/husky7025/gian-learner/releases</b> 에서 맨 위의 zip 파일을 받아, 기존 「기안학습기」 폴더를 지우고 새로 푼 폴더로 바꾸면 됩니다. 익힌 내용은 그대로 남습니다.
+    (폴더 위치가 바뀌면 바탕화면 바로가기를 다시 만들어 주세요)</details>
+  <details><summary>한글(hwp) 프로그램이 없어도 되나요?</summary>
+    파일을 <b>만드는 것</b>은 한글이 없어도 됩니다. 만든 파일을 <b>열어 보려면</b> 한글이 필요합니다.</details>
+</section>
+
+<section id="terms">
+  <h2>13. 낱말 풀이</h2>
+  <table class="terms">
+    <tr><td>양식</td><td>기안의 모양(틀). 예: 물품 품의, 강사비 품의, 내부결재 기안</td></tr>
+    <tr><td>샘플</td><td>양식을 익히라고 보여 주는 <b>예전 기안 파일</b></td></tr>
+    <tr><td>학습</td><td>샘플들을 비교해서 「매번 같은 부분」과 「매번 바뀌는 부분」을 알아내는 것</td></tr>
+    <tr><td>고정 / 입력칸</td><td>고정 = 늘 똑같이 들어가는 부분(회색), 입력칸 = 매번 새로 적는 부분(노란색)</td></tr>
+    <tr><td>.hwpx</td><td>요즘 한글 프로그램의 파일 형식. 이 프로그램이 만드는 파일입니다.</td></tr>
+    <tr><td>꾸러미(.gianpack)</td><td>익힌 양식을 다른 컴퓨터로 옮기거나 나누기 위한 파일</td></tr>
+    <tr><td>백업</td><td>지금 상태를 따로 보관해 두는 것. 나중에 그때로 되돌릴 수 있습니다.</td></tr>
+    <tr><td>다운로드 폴더</td><td>인터넷에서 받은 파일이 모이는 폴더. 만든 hwpx도 여기에 저장됩니다.</td></tr>
+  </table>
+</section>
+</main>
+</div>
+</body>
+</html>

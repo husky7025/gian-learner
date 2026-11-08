@@ -120,7 +120,10 @@ dialog { border: none; border-radius: 12px; padding: 0; width: min(620px, 92vw);
 .cat-tabs button { flex: 1; padding: 7px 2px; font-size: 12px; white-space: nowrap; letter-spacing: -0.5px; background: #2b3446; border-color: #3a4457; color: #c7cdd8; }
 .cat-tabs button.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 700; }
 .cat-tabs button small { display: block; font-size: 10px; opacity: .8; }
-.side-bottom button + button { margin-top: 6px; }
+.side-bottom button + button, .side-bottom .helpbtn + button { margin-top: 6px; }
+.side-bottom .helpbtn { display: block; text-align: center; color: #fff; background: #2f6fed; border-color: #2f6fed; margin-bottom: 6px; text-decoration: none; font-weight: 700; }
+.tabs a.btn { text-decoration: none; align-self: center; margin-left: 6px; }
+a.btn { text-decoration: none; color: inherit; }
 .helpers { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: -4px 0 12px; padding: 6px 8px; background: #f7f8fa; border-radius: 6px; }
 .helpers input { padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; width: 130px; }
 table.grid { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 13px; table-layout: auto; }
