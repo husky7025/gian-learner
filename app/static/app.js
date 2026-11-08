@@ -378,6 +378,9 @@ function renderSamples() {
   }
 }
 async function upload(files) {
+  const packs = files.filter((f) => /\.gianpack$/i.test(f.name));
+  for (const p of packs) await importPack(p);
+  files = files.filter((f) => !/\.gianpack$/i.test(f.name));
   if (!files.length || !curId) return;
   const fd = new FormData();
   for (const f of files) fd.append("files", f);
@@ -419,6 +422,7 @@ async function openSettings() {
   const info = await getJSON("/api/info");
   $("#dataDir").textContent = info.data_dir;
   getJSON("/api/system").then(showSys).catch(() => {});
+  renderPackForms();
   const ul = $("#backupList"); ul.replaceChildren();
   const list = await getJSON("/api/backups");
   if (!list.length) ul.append(h("li", { class: "empty-row" }, "백업이 없습니다"));
@@ -487,6 +491,65 @@ $("#resetAll").addEventListener("click", async () => {
   catch (e) { toast(e.message, true); }
 });
 
+// ───────── 양식 꾸러미 ─────────
+async function importPack(file) {
+  const fd = new FormData(); fd.append("file", file);
+  try {
+    const r = await getJSON("/api/packs/import", { method: "POST", body: fd });
+    await afterImport(r.imported, `「${file.name}」`);
+  } catch (e) { toast(e.message, true); }
+}
+async function afterImport(list, what) {
+  toast(`${what}에서 양식 ${list.length}개를 가져왔습니다: ` + list.map((x) => `${CATS[x.category]}›${x.name}`).join(", "));
+  if ($("#settings").open) $("#settings").close();
+  if (list.length) await selectForm(list[0].id, "write"); else await loadForms();
+}
+async function importDefault() {
+  try { const r = await getJSON("/api/packs/import-default", { method: "POST" }); await afterImport(r.imported, "기본 양식 꾸러미"); }
+  catch (e) { toast(e.message, true); }
+}
+function renderPackForms() {
+  const box = $("#packForms"); box.replaceChildren(); $("#packResult").replaceChildren();
+  for (const [key, label] of Object.entries(CATS)) {
+    const list = forms.filter((f) => f.category === key && f.sample_count > 0);
+    if (!list.length) continue;
+    box.append(h("div", { class: "cat" }, label));
+    for (const f of list) box.append(h("label", {}, h("input", { type: "checkbox", value: f.id, checked: f.id === curId }), ` ${f.name} (샘플 ${f.sample_count})`));
+  }
+  if (!box.children.length) box.append(h("p", { class: "muted small" }, "샘플이 있는 양식이 없습니다."));
+}
+const packIds = () => [...document.querySelectorAll("#packForms input:checked")].map((x) => +x.value);
+$("#packScan").addEventListener("click", async () => {
+  const ids = packIds(); const out = $("#packResult");
+  if (!ids.length) return toast("내보낼 양식을 골라 주세요.", true);
+  out.replaceChildren(h("p", { class: "muted" }, "검사하는 중…"));
+  try {
+    const res = await getJSON("/api/packs/scan", { method: "POST", json: { form_ids: ids } });
+    const total = res.reduce((n, f) => n + f.findings.length, 0);
+    out.replaceChildren(total
+      ? h("p", { class: "warnmsg" }, `⚠ 개인정보로 보이는 글자 ${total}건을 찾았습니다. 이 내용이 그대로 꾸러미에 들어갑니다.`)
+      : h("p", { class: "okmsg" }, "✔ 개인정보로 보이는 글자를 찾지 못했습니다. (자동 검사라 완벽하지 않으니 한 번 더 확인해 주세요)"));
+    for (const f of res) for (const it of f.findings)
+      out.append(h("div", { class: "find" }, `[${f.category}›${f.form}] ${it.sample} · ${it.kind}: `, h("b", {}, it.value), h("span", { class: "muted" }, `  — ${it.context}`)));
+    if (total) out.append(h("p", { class: "muted small" }, "지우려면 샘플을 한글에서 고쳐 저장한 뒤, 샘플 탭에서 기존 샘플을 빼고 다시 올려 주세요."));
+    out.append(h("button", { type: "button", class: total ? "danger" : "primary", onclick: () => exportPack(ids) },
+      total ? "확인했습니다. 그대로 내보내기" : "📤 내보내기"));
+  } catch (e) { out.replaceChildren(h("p", { class: "warnmsg" }, e.message)); }
+});
+async function exportPack(ids) {
+  try {
+    const r = await api("/api/packs/export", { method: "POST", json: { form_ids: ids } });
+    const blob = await r.blob();
+    const m = (r.headers.get("Content-Disposition") || "").match(/filename\*=UTF-8''([^;]+)/);
+    const a = h("a", { href: URL.createObjectURL(blob), download: m ? decodeURIComponent(m[1]) : "양식 꾸러미.gianpack" });
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast("꾸러미를 만들었습니다. 다운로드 폴더를 확인하세요.");
+  } catch (e) { toast(e.message, true); }
+}
+$("#packFile").addEventListener("change", (e) => { if (e.target.files[0]) importPack(e.target.files[0]); e.target.value = ""; });
+$("#packDefault").addEventListener("click", importDefault);
+$("#welcomeDefault").addEventListener("click", importDefault);
+
 function showSys(st) {
   $("#desktopState").textContent = st.desktop ? "✔ 바탕화면에 있습니다" : "";
   $("#autostart").checked = !!st.autostart;
@@ -554,6 +617,12 @@ $("#insMoney").addEventListener("click", () => {
 
 async function init() {
   try { const info = await getJSON("/api/info"); if (info.categories) CATS = info.categories; } catch (_) {}
+  try {
+    const d = await getJSON("/api/packs/default");
+    $("#packDefault").hidden = !d.available;
+    const forms0 = await getJSON("/api/forms");
+    $("#welcomePack").hidden = !d.available || forms0.some((f) => f.sample_count > 0);
+  } catch (_) {}
   if (!CATS[curCat]) curCat = "gian";
   await loadForms();
   const last = +localStorage.getItem("gian-last-form");
