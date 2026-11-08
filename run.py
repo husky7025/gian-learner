@@ -27,7 +27,9 @@ if __name__ == "__main__":
         sys.exit(0)
     import uvicorn
 
+    from app.main import app  # exe(PyInstaller)에서도 동작하도록 직접 가져오기
+
     if "--no-browser" not in sys.argv:
         threading.Timer(1.5, lambda: webbrowser.open(URL)).start()
     print(f"기안 학습기: {URL}  (이 창을 닫으면 앱이 꺼집니다)")
-    uvicorn.run("app.main:app", host=HOST, port=PORT, log_level="warning")
+    uvicorn.run(app, host=HOST, port=PORT, log_level="warning", log_config=None)

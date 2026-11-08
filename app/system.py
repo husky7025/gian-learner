@@ -37,19 +37,31 @@ def folder(kind: str) -> Path:
     return Path(out)
 
 
+FROZEN = bool(getattr(sys, "frozen", False))  # exe로 실행 중인지
+
+
+def launcher(extra: str = "") -> tuple[str, str, str]:
+    """(실행 파일, 인수, 작업 폴더)"""
+    if FROZEN:
+        exe = Path(sys.executable)
+        return str(exe), extra, str(exe.parent)
+    return pythonw(), f'"{PROJECT / "run.py"}" {extra}'.strip(), str(PROJECT)
+
+
 def pythonw() -> str:
     exe = Path(sys.executable)
     w = exe.with_name("pythonw.exe")
     return str(w if w.exists() else exe)
 
 
-def make_shortcut(path: Path, args: str) -> None:
+def make_shortcut(path: Path, extra: str = "") -> None:
+    target, args, wd = launcher(extra)
     _ps(
         "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:GL_LNK);"
         "$s.TargetPath=$env:GL_TGT; $s.Arguments=$env:GL_ARGS; $s.WorkingDirectory=$env:GL_WD;"
         "$s.IconLocation=$env:GL_ICO; $s.Description=$env:GL_DESC; $s.Save()",
-        {"GL_LNK": str(path), "GL_TGT": pythonw(), "GL_ARGS": args, "GL_WD": str(PROJECT),
-         "GL_ICO": os.path.expandvars(ICON), "GL_DESC": "기안 학습기"},
+        {"GL_LNK": str(path), "GL_TGT": target, "GL_ARGS": args, "GL_WD": wd,
+         "GL_ICO": target if FROZEN else os.path.expandvars(ICON), "GL_DESC": "기안 학습기"},
     )
 
 
@@ -64,12 +76,12 @@ def status() -> dict:
 
 
 def create_desktop() -> None:
-    make_shortcut(folder("Desktop") / LNK_NAME, f'"{PROJECT / "run.py"}"')
+    make_shortcut(folder("Desktop") / LNK_NAME)
 
 
 def set_autostart(enable: bool) -> None:
     lnk = folder("Startup") / LNK_NAME
     if enable:
-        make_shortcut(lnk, f'"{PROJECT / "run.py"}" --no-browser')
+        make_shortcut(lnk, "--no-browser")
     else:
         lnk.unlink(missing_ok=True)

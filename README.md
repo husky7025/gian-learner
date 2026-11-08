@@ -2,7 +2,10 @@
 
 샘플 기안(.hwpx)을 올리면 양식을 학습하고, 입력한 내용으로 **같은 서식의 .hwpx 파일**을 만들어 주는 로컬 웹 앱입니다.
 
-## 실행
+## 내려받기 (선생님용)
+**https://github.com/husky7025/gian-learner/releases** 에서 최신 `gian-learner-v…-windows.zip`을 받아 압축을 풀고 `기안학습기.exe`를 실행하세요. Python 설치가 필요 없습니다. 자세한 내용은 [docs/사용안내.txt](docs/사용안내.txt).
+
+## 실행 (개발용)
 `기안학습기 실행.bat` 을 더블클릭하면 브라우저에서 http://127.0.0.1:8765 이 열립니다. 검은 창을 닫으면 앱이 꺼집니다.
 (처음 실행할 때 필요한 파이썬 패키지를 자동으로 설치합니다. Python 3.10 이상 필요)
 
@@ -37,6 +40,9 @@
 - 인터넷 서비스(DB·AI 등)를 쓰지 않습니다.
 
 ## 개발 참고
+- 샘플 형식: .hwpx(서식까지 학습) · .odt/.pdf(`app/convert.py`가 글자·번호 구조만 읽어 기본 서식 hwpx로 변환)
+- exe 만들기: `pip install pyinstaller` 후 `python tools/build_exe.py` → `dist/gian-learner-v<버전>-windows.zip`
+- 출시: `app/version.py`의 버전을 올리고 커밋 → `git tag v<버전>` → `git push --tags` 하면 GitHub Actions가 zip을 만들어 Releases에 올림
 - 기본 꾸러미 다시 만들기: `python tools/make_default_pack.py --gian 기안.hwpx --pumui 품의.hwpx --gatong 가정통신문.hwpx`
   (서식만 빌려 쓰고 글자는 스크립트 안의 가상 예시로 모두 바꿉니다. 빠진 칸이 있으면 멈춥니다.)
 

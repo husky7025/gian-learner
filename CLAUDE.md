@@ -8,3 +8,6 @@
 - 샘플 hwpx(학교 문서·개인정보 포함 가능)는 프로젝트 폴더나 Git에 넣지 않는다.
 - 분류: forms.category = gian(기안)/pumui(품의)/gatong(가정통신문). 분류에 양식이 없으면 기본 양식을 자동 생성.
 - 양식 꾸러미: `app/packs.py`(내보내기 시 작성자·미리보기 그림·파일명 제거, 개인정보 검사). 기본 꾸러미 `packs/기본양식.gianpack`은 `tools/make_default_pack.py`로 가상 예시만 넣어 생성 — 다시 만들면 원본 이름·전화번호가 없는지 바이트 단위로 검사 후 커밋.
+- 버전: `app/version.py` = 태그 vX.Y.Z (Actions가 불일치 시 실패). 출시는 `.github/workflows/release.yml`(windows-latest, PyInstaller onedir --windowed, exe 실행 검사 후 gh release create).
+- ODT·PDF 샘플은 `app/convert.py`로 기본 꾸러미 품의 예시 서식의 hwpx로 변환(content.hpf description=gian-learner:converted). 기준 서식은 원본 hwpx 샘플을 우선.
+- PDF는 pypdf(BSD) 사용. PyMuPDF는 AGPL이라 쓰지 않음.

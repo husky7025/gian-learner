@@ -1,0 +1,68 @@
+# 버전 태그(vX.Y.Z)를 올리면 Windows용 zip을 만들어 GitHub Releases에 올린다.
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 패키지 설치
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: 태그와 앱 버전 확인
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          APP=$(python -c "from app.version import __version__; print(__version__)")
+          if [ "v$APP" != "${GITHUB_REF_NAME}" ]; then
+            echo "app/version.py($APP)와 태그(${GITHUB_REF_NAME})가 다릅니다." && exit 1
+          fi
+
+      - name: exe·zip 만들기
+        run: python tools/build_exe.py --out dist
+
+      - name: 빌드한 exe 실행 검사
+        shell: bash
+        run: |
+          export GIAN_DATA_DIR="$RUNNER_TEMP/gian-data"
+          ./dist/_build/dist/기안학습기/기안학습기.exe --no-browser &
+          for i in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:8765/api/forms && break; sleep 1; done
+          curl -sf http://127.0.0.1:8765/api/info
+          curl -sf -X POST http://127.0.0.1:8765/api/packs/import-default
+          curl -sf -o out.hwpx -X POST http://127.0.0.1:8765/api/forms/2/generate -H "Content-Type: application/json" -d "{}"
+          test -s out.hwpx
+          curl -s -X POST http://127.0.0.1:8765/api/shutdown || true
+
+      - name: 빌드 결과 보관
+        uses: actions/upload-artifact@v4
+        with:
+          name: gian-learner-windows
+          path: dist/*.zip
+
+      - name: GitHub Releases에 올리기
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/*.zip \
+            --title "기안 학습기 ${GITHUB_REF_NAME}" \
+            --notes-file docs/release-notes.md

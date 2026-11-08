@@ -13,10 +13,12 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import convert as C
 from . import hwpx_engine as E
 from . import packs as P
 from . import storage as S
 from . import system as SYS
+from .version import __version__
 
 PORT = 8765
 MAX_UPLOAD = 20 * 1024 * 1024
@@ -25,7 +27,7 @@ RESOURCES = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent
 DEFAULT_PACK = RESOURCES / "packs" / "기본양식.gianpack"
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 
-app = FastAPI(title="기안 학습기", docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="기안 학습기", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
 S.init()
 
 
@@ -104,7 +106,7 @@ class GenerateIn(BaseModel):
 
 @app.get("/api/info")
 def info():
-    return {"data_dir": str(S.DATA_DIR), "categories": S.CATEGORIES}
+    return {"data_dir": str(S.DATA_DIR), "categories": S.CATEGORIES, "version": __version__}
 
 
 @app.get("/api/forms")
@@ -163,16 +165,26 @@ def template(form_id: int):
 @app.post("/api/forms/{form_id}/samples")
 async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
     f = _form_or_404(form_id)
-    added, errors = [], []
+    added, errors, notes = [], [], []
     for up in files:
         name = Path(up.filename or "sample.hwpx").name
         data = await up.read(MAX_UPLOAD + 1)
         if len(data) > MAX_UPLOAD:
             errors.append(f"{name}: 20MB를 넘는 파일은 올릴 수 없습니다.")
             continue
-        if name.lower().endswith(".hwp"):
+        low = name.lower()
+        if low.endswith(".hwp"):
             errors.append(f"{name}: 구버전 .hwp 파일입니다. 한글에서 '다른 이름으로 저장 → HWPX'로 바꿔 올려 주세요.")
             continue
+        if low.endswith((".odt", ".pdf")):
+            try:
+                data = C.to_hwpx(name, data)
+            except C.ConvertError as e:
+                errors.append(f"{name}: {e}")
+                continue
+            kind = "PDF" if low.endswith(".pdf") else "ODT"
+            name = f"{Path(name).stem} ({kind}에서 변환).hwpx"
+            notes.append(name)
         try:
             E.learn([data], ["check"])  # 분석 가능한지 미리 확인
         except (E.HwpxError, Exception) as e:  # noqa: BLE001
@@ -181,7 +193,7 @@ async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
             continue
         added.append(S.add_sample(form_id, name, data))
     tpl, _ = _learn(f)
-    return {"added": added, "errors": errors, "template": tpl}
+    return {"added": added, "errors": errors, "converted": notes, "template": tpl}
 
 
 @app.delete("/api/forms/{form_id}/samples/{sample_id}")
