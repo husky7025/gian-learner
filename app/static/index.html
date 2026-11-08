@@ -64,6 +64,17 @@
       </div>
       <div id="writeArea" class="split" hidden>
         <div class="editor">
+          <div class="ai-box">
+            <div class="ai-head">✨ 간단히 적으면 AI가 기존 기안처럼 써 드려요
+              <span id="aiWho" class="muted small"></span>
+              <a class="btn small" href="/help#ai">❓</a></div>
+            <textarea id="aiBrief" rows="3" placeholder="예) 11월 20일(금) 15시 과학실, 과학동아리 실험 재료(비커·시약) 구입. 금액 25만 원. 견적서 첨부."></textarea>
+            <div class="ai-row">
+              <label class="small">기안일 <input id="aiDate" type="date"></label>
+              <button id="aiGo" class="primary">✨ AI로 작성하기</button>
+              <span id="aiState" class="muted small"></span>
+            </div>
+          </div>
           <div class="toolbar">
             <label class="fname">파일 이름 <input id="fileName" placeholder="비워 두면 건명/제목으로 저장"></label>
             <button id="fillExamples" class="ghost small" title="빈칸을 샘플 내용으로 채웁니다">예시로 빈칸 채우기</button>
@@ -130,6 +141,18 @@
       <button type="button" id="updNow" class="small">지금 확인</button><span id="updState" class="muted small"></span></div>
     <div class="sys-row"><label><input type="checkbox" id="autostart"> 컴퓨터를 켜면 자동으로 실행 (창 없이 뒤에서 실행, 바로가기를 누르면 바로 열림)</label></div>
     <p class="muted small">저장 위치: <code id="dataDir"></code><br>(OneDrive와 동기화되지 않는 이 컴퓨터 전용 폴더입니다)</p>
+    <h3>🤖 AI 작성 설정 <a class="btn small" href="/help#ai">❓ 키 받는 방법</a></h3>
+    <div class="pack">
+      <div class="sys-row"><label>사용할 AI <select id="aiProvider"></select></label></div>
+      <div class="sys-row"><label>모델 <input id="aiModel" list="aiModelList" size="26"></label><datalist id="aiModelList"></datalist>
+        <button type="button" id="aiLoadModels" class="small">목록 불러오기</button></div>
+      <div class="sys-row" id="aiKeyRow"><label>API 키 <input id="aiKey" type="password" autocomplete="off" size="30" placeholder="키를 붙여 넣으세요"></label>
+        <button type="button" id="aiKeySave" class="small">저장</button><button type="button" id="aiKeyDel" class="small ghost">지우기</button>
+        <span id="aiKeyState" class="muted small"></span></div>
+      <div class="sys-row" id="aiOllamaRow"><label>로컬 AI 주소 <input id="aiOllama" size="26"></label></div>
+      <div class="sys-row"><button type="button" id="aiSave" class="primary small">AI 설정 저장</button><span id="aiSetState" class="muted small"></span></div>
+      <p id="aiCloudNote" class="muted small"></p>
+    </div>
     <h3>양식 꾸러미 <span class="muted small">학습된 양식을 파일(.gianpack)로 주고받기</span></h3>
     <div class="pack">
       <div class="sys-row">

@@ -425,6 +425,7 @@ async function openSettings() {
   const info = await getJSON("/api/info");
   $("#dataDir").textContent = info.data_dir;
   getJSON("/api/system").then(showSys).catch(() => {});
+  loadAI();
   getJSON("/api/settings").then((st) => { $("#updCheck").checked = !!st.update_check; }).catch(() => {});
   $("#updState").textContent = "";
   renderPackForms();
@@ -659,6 +660,91 @@ $("#updNow").addEventListener("click", async () => {
     : `지금 최신 버전(v${r.current})을 쓰고 있습니다.`;
 });
 
+// ───────── AI 작성 ─────────
+let AIS = null;
+const CLOUD_NAME = { claude: "Anthropic(Claude)", gemini: "Google(Gemini)", openai: "OpenAI(ChatGPT)" };
+async function loadAI() {
+  try { AIS = await getJSON("/api/ai"); } catch (_) { return; }
+  const p = AIS.providers.find((x) => x.id === AIS.provider);
+  $("#aiWho").textContent = p ? `· 지금 쓰는 AI: ${p.label}` : "";
+  const sel = $("#aiProvider");
+  sel.replaceChildren(...AIS.providers.map((x) => h("option", { value: x.id, selected: x.id === AIS.provider }, x.label)));
+  showAIFields();
+}
+function showAIFields() {
+  const pid = $("#aiProvider").value;
+  const p = AIS.providers.find((x) => x.id === pid);
+  $("#aiModel").value = AIS.models[pid] || "";
+  $("#aiModelList").replaceChildren();
+  $("#aiKeyRow").hidden = !p.needs_key;
+  $("#aiOllamaRow").hidden = pid !== "ollama";
+  $("#aiOllama").value = AIS.ollama_url;
+  $("#aiKey").value = "";
+  const k = AIS.keys[pid];
+  $("#aiKeyState").textContent = k && k.set ? `✔ 저장됨 ${k.hint}` : "키 없음";
+  $("#aiCloudNote").textContent = pid === "ollama"
+    ? "로컬 AI는 이 컴퓨터 안에서만 작동합니다(인터넷 전송 없음). Ollama 설치와 모델 받기가 필요합니다."
+    : `AI로 작성할 때 적은 내용과 샘플 기안 글이 ${CLOUD_NAME[pid]} 서버로 보내집니다. 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다. 사용 요금은 각자의 API 계정에 청구됩니다.`;
+  $("#aiSetState").textContent = "";
+}
+$("#aiProvider").addEventListener("change", showAIFields);
+$("#aiLoadModels").addEventListener("click", async () => {
+  const pid = $("#aiProvider").value;
+  $("#aiSetState").textContent = "모델 목록을 불러오는 중…";
+  try {
+    const r = await getJSON(`/api/ai/models?provider=${pid}`);
+    $("#aiModelList").replaceChildren(...r.models.map((m) => h("option", { value: m })));
+    $("#aiSetState").textContent = r.models.length ? `✔ 연결됨 · 모델 ${r.models.length}개 (모델 칸을 눌러 고르세요)` : "모델이 없습니다.";
+  } catch (e) { $("#aiSetState").textContent = "✖ " + e.message; }
+});
+async function putAI(body, msg) {
+  try { AIS = await getJSON("/api/ai", { method: "PUT", json: body }); showAIFields(); await loadAI(); if (msg) toast(msg); return true; }
+  catch (e) { toast(e.message, true); return false; }
+}
+$("#aiSave").addEventListener("click", () => {
+  const pid = $("#aiProvider").value;
+  const body = { provider: pid, models: { [pid]: $("#aiModel").value.trim() } };
+  if (pid === "ollama") body.ollama_url = $("#aiOllama").value.trim();
+  putAI(body, "AI 설정을 저장했습니다.");
+});
+$("#aiKeySave").addEventListener("click", () => {
+  const v = $("#aiKey").value.trim(); if (!v) return toast("API 키를 붙여 넣어 주세요.", true);
+  putAI({ key: { provider: $("#aiProvider").value, value: v } }, "API 키를 이 컴퓨터에 암호화해 저장했습니다.");
+});
+$("#aiKeyDel").addEventListener("click", () => {
+  if (!confirm("저장된 API 키를 지울까요?")) return;
+  putAI({ key: { provider: $("#aiProvider").value, value: "" } }, "API 키를 지웠습니다.");
+});
+async function aiDraft() {
+  const brief = $("#aiBrief").value.trim();
+  if (!brief) return toast("무엇을 기안할지 간단히 적어 주세요.", true);
+  const sig = (st) => JSON.stringify([st.fields, (st.outline || []).map((x) => [x.label || "", x.value || ""]), st.attach, st.cells || {}]);
+  const hasContent = sig(S) !== sig(freshState());  // 학습된 처음 상태에서 직접 고친 내용이 있을 때만 묻기
+  if (hasContent && !confirm("AI가 쓴 내용으로 지금 작성 칸을 바꿀까요? (지금 내용은 지워집니다)")) return;
+  const btn = $("#aiGo"); btn.disabled = true;
+  const slow = AIS && AIS.provider === "ollama" ? " (로컬 AI는 1~3분 걸릴 수 있어요)" : "";
+  $("#aiState").textContent = "✍ AI가 기안을 쓰는 중…" + slow;
+  try {
+    let r;
+    try { r = await getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null } }); }
+    catch (e) {
+      if (e.message !== "CONSENT_REQUIRED") throw e;
+      const name = CLOUD_NAME[AIS.provider] || AIS.provider;
+      if (!confirm(`${name} AI를 처음 사용합니다.\n\n· 적은 내용과 샘플 기안 글이 ${name} 서버로 보내집니다.\n· 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다.\n· 사용 요금은 내 API 계정에 청구됩니다.\n\n계속할까요?`)) { $("#aiState").textContent = ""; return; }
+      await api("/api/ai", { method: "PUT", json: { consent: { [AIS.provider]: true } } });
+      r = await getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null } });
+    }
+    const base = freshState();
+    S = { filename: r.filename || "", fields: { ...base.fields, ...r.fields }, outline: r.outline.length ? r.outline : base.outline,
+          attach: r.attach, cells: { ...r.cells } };
+    saveDraft(); renderWrite(); refreshPreview();
+    $("#aiState").textContent = `✔ ${r.model}이(가) 작성했습니다. 오른쪽 미리보기를 확인하고, 고칠 곳은 고친 뒤 📄 HWPX 만들기를 누르세요.`;
+    $("#generate").scrollIntoView({ behavior: "smooth", block: "center" });
+  } catch (e) { $("#aiState").textContent = "✖ " + e.message; }
+  finally { btn.disabled = false; }
+}
+$("#aiGo").addEventListener("click", aiDraft);
+
 async function init() {
   try { const info = await getJSON("/api/info"); if (info.categories) CATS = info.categories; $("#appVer").textContent = "v" + info.version; } catch (_) {}
   try {
@@ -671,6 +757,8 @@ async function init() {
   await loadForms();
   const last = +localStorage.getItem("gian-last-form");
   checkUpdate();
+  loadAI();
+  { const d = new Date(); $("#aiDate").value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
   const fresh = !forms.some((f) => f.sample_count > 0);
   if (!curId && last && forms.some((f) => f.id === last) && !fresh) await selectForm(last);
   else if (!curId && !fresh) await switchCat(curCat);

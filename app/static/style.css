@@ -4,6 +4,7 @@
   --radius: 8px;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }  /* display:flex/grid가 hidden을 덮어쓰지 않게 */
 body { margin: 0; display: flex; height: 100vh; font-family: "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
   font-size: 14px; color: var(--text); background: var(--bg); }
 button, input, textarea, select { font: inherit; }
@@ -146,4 +147,12 @@ table.grid.learn td:hover:not(.locked) { outline: 2px solid var(--primary); outl
 .update-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: #e8f5e9; border: 1px solid #a5d6a7;
   border-radius: 10px; padding: 10px 14px; margin-bottom: 12px; font-size: 15px; }
 .update-bar a.btn.primary { color: #fff; }
+.ai-box { background: linear-gradient(135deg, #f2f6ff, #f7f2ff); border: 1px solid #cfdcfb; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+.ai-head { font-weight: 700; margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ai-head a.btn { margin-left: auto; text-decoration: none; }
+.ai-row { display: flex; gap: 10px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.ai-row input { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; }
+.ai-row .primary { padding: 8px 18px; font-weight: 700; }
+#aiBrief { font-size: 15px; }
+.sys-row select, .sys-row input { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; }
 .sys-row { display: flex; gap: 10px; align-items: center; margin: 6px 0; }

@@ -4,7 +4,9 @@ import sys
 import threading
 import webbrowser
 
-HOST, PORT = "127.0.0.1", 8765
+import os
+
+HOST, PORT = "127.0.0.1", int(os.environ.get("GIAN_PORT", "8765"))  # 시험할 때는 다른 포트로
 URL = f"http://{HOST}:{PORT}/"
 
 
