@@ -157,13 +157,6 @@ table.grid.learn td:hover:not(.locked) { outline: 2px solid var(--primary); outl
 .sys-row select, .sys-row input { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; }
 .sys-row { display: flex; gap: 10px; align-items: center; margin: 6px 0; }
 
-/* 표 반복 줄(물품 목록) */
-table.grid tr.rep-row td:first-child { box-shadow: inset 3px 0 0 #8fb4ff; }
-table.grid.learn tr.rep-row td { background: #eef4ff; }
-table.grid td.rowctl { border: none; background: transparent; width: 34px; padding: 2px 0 0 4px; vertical-align: middle; }
-table.grid td.rowctl button { padding: 1px 7px; }
-.repwrap { margin: 6px 0; }
+/* 다른 양식과 더 닮은 샘플 안내 */
 .list li.warn-row { background: #fff4d6; border-color: #f0d58a; font-size: 13px; }
-.repscroll { overflow-x: auto; }
-table.grid tr.rep-row td.field textarea { min-width: 4.5em; }
 .list li.warn-row .grow { white-space: normal; overflow: visible; text-overflow: clip; }

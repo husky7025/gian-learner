@@ -266,99 +266,6 @@ def _cell_key(gti: int, cell: dict) -> str:
     return f"c{gti}_{cell['r']}_{cell['c']}"
 
 
-# ── 표의 반복 줄(물품 목록 등) ──
-SUM_RE = re.compile(r"^[ 　]*(합[ 　]*계|총[ 　]*계|소[ 　]*계|계|총[ 　]*액|합[ 　]*계[ 　]*금[ 　]*액)[ 　]*$")
-NUM_HEAD_RE = re.compile(r"^[ 　]*(연[ 　]*번|번[ 　]*호|순[ 　]*번|순[ 　]*서|no\.?)[ 　]*$", re.I)
-ROLE_RES = [
-    ("qty", re.compile(r"수[ 　]*량")),
-    ("price", re.compile(r"단[ 　]*가")),
-    ("amount", re.compile(r"금[ 　]*액|합[ 　]*계|소[ 　]*계|총[ 　]*액|^[ 　]*계[ 　]*$|예[ 　]*산")),
-]
-MAX_REPEAT_ROWS = 200
-
-
-def _sig(row: list[dict]) -> tuple:
-    """줄 모양: 세로로 합친 옆 칸(예: 「3월」)은 빼고 한 줄짜리 칸만."""
-    return tuple((c["c"], c["cs"]) for c in row if c["rs"] == 1)
-
-
-def _plain_row(row: list[dict], allow_span: bool = False) -> bool:
-    core = [c for c in row if c["rs"] == 1]
-    if len(core) < 2 or any(c["locked"] for c in core) or any(SUM_RE.match(c["text"]) for c in row):
-        return False
-    return allow_span or len(core) == len(row)
-
-
-def find_repeat(rows: list[list[dict]]) -> tuple[int, int] | None:
-    """머리글 줄 아래에 칸 모양이 같은 줄이 이어지는 가장 긴 구간(시작, 끝 줄 번호).
-    구간 첫 줄에서 시작해 아래로 합쳐진 옆 칸(월중행사표의 「월」 칸 등)은 허용한다."""
-    best = None
-    i = 1
-    while i < len(rows):
-        if not _plain_row(rows[i], allow_span=True):
-            i += 1
-            continue
-        sig, j = _sig(rows[i]), i
-        while j + 1 < len(rows) and _sig(rows[j + 1]) == sig and _plain_row(rows[j + 1]):
-            j += 1
-        spans = [c["rs"] for c in rows[i] if c["rs"] > 1]
-        if spans:  # 합친 칸이 덮는 줄까지만 (그 아래는 다른 묶음)
-            j = min(j, i + min(spans) - 1)
-        if best is None or j - i > best[1] - best[0]:
-            best = (i, j)
-        i = j + 1
-    return best
-
-
-def _rep_values(rows: list[list[dict]], reg: tuple[int, int]) -> list[dict]:
-    """반복 구간 줄들을 {열 번호: 글자}로."""
-    return [{c["c"]: c["text"] for c in rows[r]} for r in range(reg[0], reg[1] + 1)]
-
-
-def _map_row(r: int, base_reg, other_reg) -> int | None:
-    """기준 표의 줄 번호를 다른 샘플 표의 줄 번호로 (반복 구간 길이 차이 반영)."""
-    if not base_reg or not other_reg:
-        return r
-    if r < base_reg[0]:
-        return r
-    if r > base_reg[1]:
-        return other_reg[1] + (r - base_reg[1])
-    return None
-
-
-def _learn_repeat(gti: int, t: dict, reg, other_tables: list[dict], total: int, ov: str | None) -> dict | None:
-    rows = t["rows"]
-    if reg is None:
-        return None
-    sig = _sig(rows[reg[0]])
-    head_row = rows[reg[0] - 1]
-    other_regs = [(ot, find_repeat(ot["rows"])) for ot in other_tables]
-    other_regs = [(ot, r) for ot, r in other_regs if r and _sig(ot["rows"][r[0]]) == sig]
-    lens = {reg[1] - reg[0] + 1} | {r[1] - r[0] + 1 for _, r in other_regs}
-    all_vals = _rep_values(rows, reg) + [v for ot, r in other_regs for v in _rep_values(ot["rows"], r)]
-    base_vals = _rep_values(rows, reg)
-    # 자동으로 켜는 경우: 샘플마다 줄 수가 다르거나, 내용이 채워진 줄이 2줄 이상인 3칸 이상 표
-    # (빈 신청서 줄·고정된 동의 표처럼 1줄짜리나 빈 줄은 학습 내용 탭에서 직접 켠다)
-    filled = sum(1 for v in base_vals if sum(1 for x in v.values() if x.strip() and x.strip() != "-") >= 2)
-    auto_on = len(lens) > 1 or (len(sig) >= 3 and filled >= 2)
-    on = ov == "on" or (ov != "off" and auto_on)
-    cols = []
-    for c, cs in sig:
-        head = next((h["text"] for h in head_row if h["c"] <= c < h["c"] + h["cs"]), "").strip()
-        vals = [v.get(c, "") for v in all_vals]
-        bvals = [v.get(c, "") for v in base_vals]
-        role = next((name for name, rx in ROLE_RES if rx.search(head)), None)
-        is_num = bool(NUM_HEAD_RE.match(head)) or (len(bvals) > 1 and bvals == [str(k + 1) for k in range(len(bvals))])
-        const = vals[0] if len(vals) > 1 and all(v == vals[0] for v in vals) and not is_num else ""
-        examples = list(dict.fromkeys(v for v in vals if v.strip()))[:5]
-        cols.append({"c": c, "cs": cs, "head": head, "num": is_num, "role": role, "const": const, "examples": examples})
-    if total <= 1:
-        default_rows = [[v.get(col["c"], "") for col in cols] for v in base_vals]
-    else:
-        default_rows = [["1" if col["num"] else col["const"] for col in cols]]
-    return {"start": reg[0], "end": reg[1], "on": on, "auto": auto_on, "cols": cols, "default_rows": default_rows}
-
-
 def _learn_tables(base: Doc, others: list[Doc], overrides: dict, total: int) -> list[dict]:
     base_t = doc_tables(base)
     other_t = [doc_tables(d) for d in others]
@@ -366,25 +273,15 @@ def _learn_tables(base: Doc, others: list[Doc], overrides: dict, total: int) -> 
     for gti, t in enumerate(base_t):
         nrows = len(t["rows"])
         ncols = max((c["c"] + c["cs"] for row in t["rows"] for c in row), default=0)
-        reg = find_repeat(t["rows"])
-        same = [ot[gti] for ot in other_t if gti < len(ot)]
-        rep = _learn_repeat(gti, t, reg, same, total, overrides.get(f"rep{gti}"))
-        use_reg = reg if rep and rep["on"] else None
-        o_regs = [find_repeat(ot[gti]["rows"]) if use_reg and gti < len(ot) else None for ot in other_t]
         rows = []
         for row in t["rows"]:
             cells = []
             for cell in row:
                 key = _cell_key(gti, cell)
                 vals = [cell["text"]]
-                for k, ot in enumerate(other_t):
+                for ot in other_t:
                     if gti < len(ot):
-                        orow = _map_row(cell["r"], use_reg, o_regs[k])
-                        if orow is None and cell["rs"] > 1 and o_regs[k]:
-                            orow = o_regs[k][0]  # 합친 옆 칸(「3월」 등)은 다른 샘플의 구간 첫 줄과 비교
-                        if orow is None:
-                            continue
-                        hit = next((c for r in ot[gti]["rows"] for c in r if c["r"] == orow and c["c"] == cell["c"]), None)
+                        hit = next((c for r in ot[gti]["rows"] for c in r if c["r"] == cell["r"] and c["c"] == cell["c"]), None)
                         if hit is not None:
                             vals.append(hit["text"])
                 if cell["locked"]:
@@ -398,24 +295,11 @@ def _learn_tables(base: Doc, others: list[Doc], overrides: dict, total: int) -> 
                 default, examples = _value_default(vals, total)
                 if len(vals) == 1:
                     default = cell["text"]
-                spec = {"key": key, "r": cell["r"], "c": cell["c"], "cs": cell["cs"], "rs": cell["rs"],
-                        "text": cell["text"], "type": kind, "auto": auto, "locked": cell["locked"],
-                        "default": default if kind == "field" else cell["text"], "examples": examples[:5]}
-                if use_reg and use_reg[0] <= cell["r"] <= use_reg[1] and cell["rs"] > 1:
-                    spec["span_rep"] = True  # 반복 줄 옆에 세로로 합친 칸: 줄 수에 맞춰 늘어남
-                elif use_reg and use_reg[0] <= cell["r"] <= use_reg[1]:
-                    spec["rep"] = True
-                    if total > 1 and kind == "field":
-                        spec["default"] = ""
-                elif use_reg and cell["r"] > use_reg[1] and kind == "field":
-                    # 합계 칸: 같은 열의 금액 열을 더한 값을 자동으로 넣을 수 있게
-                    col = next((x for x in rep["cols"] if x["role"] == "amount"
-                                and cell["c"] <= x["c"] < cell["c"] + cell["cs"]), None)
-                    if col is not None and any(SUM_RE.match(c2["text"]) for c2 in row):
-                        spec["sum_of"] = col["c"]
-                cells.append(spec)
+                cells.append({"key": key, "r": cell["r"], "c": cell["c"], "cs": cell["cs"], "rs": cell["rs"],
+                              "text": cell["text"], "type": kind, "auto": auto, "locked": cell["locked"],
+                              "default": default if kind == "field" else cell["text"], "examples": examples[:5]})
             rows.append(cells)
-        out.append({"gti": gti, "src": t["src"], "rows": rows, "repeat": rep})
+        out.append({"gti": gti, "src": t["src"], "rows": rows})
     return out
 
 
@@ -435,140 +319,6 @@ def _set_cell_text(tc, value: str, new_id) -> None:
             sub.insert(list(sub).index(paras[-1]) + 1 + (k - len(paras)), np_)
     for extra in paras[len(lines):]:
         sub.remove(extra)
-
-
-def _tr_height(tr) -> int:
-    hs = []
-    for tc in tr.findall(HP + "tc"):
-        sp, sz = tc.find(HP + "cellSpan"), tc.find(HP + "cellSz")
-        if sz is not None and (sp is None or int(sp.get("rowSpan", 1)) == 1):  # 합친 칸은 여러 줄 높이라 제외
-            hs.append(int(sz.get("height", 0)))
-    return max(hs, default=0)
-
-
-def repeat_rows_for(tpl_table: dict, data: dict) -> list[list[str]] | None:
-    """입력값에서 반복 줄 목록을 꺼낸다. 없으면(예전 기록) 표 칸 입력값으로 기준 줄 수만큼 만든다."""
-    rep = tpl_table.get("repeat")
-    if not rep or not rep.get("on"):
-        return None
-    given = (data.get("rows") or {}).get(str(tpl_table["gti"]))
-    ncol = len(rep["cols"])
-    if given is not None:
-        rows = [[str(v) if v is not None else "" for v in list(r)[:ncol]] + [""] * max(0, ncol - len(r))
-                for r in list(given)[:MAX_REPEAT_ROWS] if isinstance(r, (list, tuple))]
-    else:
-        cells_in = data.get("cells", {}) or {}
-        by_rc = {(c["r"], c["c"]): c for row in tpl_table["rows"] for c in row}
-        rows = []
-        for r in range(rep["start"], rep["end"] + 1):
-            vals = []
-            for col in rep["cols"]:
-                c = by_rc.get((r, col["c"]))
-                vals.append(str(cells_in.get(c["key"], c["default"])) if c else "")
-            rows.append(vals)
-    for i, r in enumerate(rows):  # 연번 열이 비어 있으면 자동 번호
-        for k, col in enumerate(rep["cols"]):
-            if col["num"] and not r[k].strip():
-                r[k] = str(i + 1)
-    return rows
-
-
-def resize_repeat(tbl, start: int, end: int, cols: list[dict], values: list[list[str]], new_id) -> None:
-    """표의 반복 구간(start~end 줄)을 values 줄 수만큼 늘리거나 줄이고 글자를 넣는다.
-    첫 줄·끝 줄의 테두리 모양을 지키려고, 새 줄은 가운데 줄을 복사한다."""
-    trs = tbl.findall(HP + "tr")
-    body = trs[start:end + 1]
-    k_old = len(body)
-    if not values:
-        values = [[""] * len(cols)]
-    n = len(values)
-
-    def borders(tr):
-        return tuple(tc.get("borderFillIDRef") for tc in tr.findall(HP + "tc")
-                     if (tc.find(HP + "cellSpan") is None or int(tc.find(HP + "cellSpan").get("rowSpan", 1)) == 1))
-
-    def look(tr):  # 테두리 + 글자 모양(빨간 휴일 줄 같은 특별한 줄을 가려내려고)
-        return (borders(tr), tuple(r.get("charPrIDRef") for r in tr.iter(HP + "run")))
-
-    # 가장 흔한 줄 모양을 새 줄의 본으로 (첫·끝 줄은 테두리가 다를 때만 원래 줄 사용)
-    counts = Counter(look(tr) for tr in body)
-    common = max(body, key=lambda tr: (counts[look(tr)], -body.index(tr)))
-    first = body[0] if borders(body[0]) != borders(common) else common
-    last = body[-1] if borders(body[-1]) != borders(common) else common
-
-    def source(i):
-        if i == 0:
-            return first
-        if i == n - 1:
-            return last
-        return common
-
-    span_tcs = [tc for tc in body[0].findall(HP + "tc")
-                if tc.find(HP + "cellSpan") is not None and int(tc.find(HP + "cellSpan").get("rowSpan", 1)) > 1
-                and tc.find(HP + "cellAddr") is not None]
-    used = set()
-    new_trs = []
-    for i in range(n):
-        src = source(i)
-        tr = copy.deepcopy(src)
-        if id(src) in used:  # 같은 줄을 두 번 이상 복사하면 문단 id를 새로
-            for p in tr.iter(HP + "p"):
-                p.set("id", new_id())
-        used.add(id(src))
-        for tc in tr.findall(HP + "tc"):  # 합친 옆 칸은 아래에서 첫 줄에만 다시 넣는다
-            sp = tc.find(HP + "cellSpan")
-            if sp is not None and int(sp.get("rowSpan", 1)) > 1:
-                tr.remove(tc)
-        if i == 0:
-            for stc in span_tcs:
-                col = int(stc.find(HP + "cellAddr").get("colAddr", 0))
-                tcs = tr.findall(HP + "tc")
-                after = [t for t in tcs if int(t.find(HP + "cellAddr").get("colAddr", 0)) < col]
-                tr.insert(list(tr).index(after[-1]) + 1 if after else list(tr).index(tcs[0]) if tcs else len(tr),
-                          copy.deepcopy(stc))
-        for tc in tr.findall(HP + "tc"):
-            a = tc.find(HP + "cellAddr")
-            if a is not None:
-                a.set("rowAddr", str(start + i))
-            col = int(a.get("colAddr", 0)) if a is not None else 0
-            k = next((j for j, x in enumerate(cols) if x["c"] == col), None)
-            if k is not None and tc.findall(f"{HP}subList/{HP}p"):
-                val = values[i][k] if k < len(values[i]) else ""
-                _set_cell_text(tc, val, new_id)
-        new_trs.append(tr)
-
-    delta = n - k_old
-    old_h = sum(_tr_height(tr) for tr in body)
-    new_h = sum(_tr_height(tr) for tr in new_trs)
-    pos = list(tbl).index(body[0])
-    for tr in body:
-        tbl.remove(tr)
-    for j, tr in enumerate(new_trs):
-        tbl.insert(pos + j, tr)
-    if delta:
-        for tc in new_trs[0].findall(HP + "tc"):  # 첫 줄에서 시작한 합친 칸 늘이기/줄이기
-            sp, csz = tc.find(HP + "cellSpan"), tc.find(HP + "cellSz")
-            if sp is not None and int(sp.get("rowSpan", 1)) > 1:
-                sp.set("rowSpan", str(max(1, int(sp.get("rowSpan")) + delta)))
-                if csz is not None and csz.get("height"):
-                    csz.set("height", str(max(1, int(csz.get("height")) + new_h - old_h)))
-        for tr in tbl.findall(HP + "tr"):
-            for tc in tr.findall(HP + "tc"):
-                a, sp = tc.find(HP + "cellAddr"), tc.find(HP + "cellSpan")
-                if a is None:
-                    continue
-                r = int(a.get("rowAddr", 0))
-                if tr in new_trs:
-                    continue
-                if r > end:
-                    a.set("rowAddr", str(r + delta))
-                elif sp is not None and r < start and r + int(sp.get("rowSpan", 1)) - 1 >= start:
-                    sp.set("rowSpan", str(max(1, int(sp.get("rowSpan", 1)) + delta)))
-        if tbl.get("rowCnt"):
-            tbl.set("rowCnt", str(int(tbl.get("rowCnt")) + delta))
-    sz = tbl.find(HP + "sz")
-    if sz is not None and sz.get("height"):
-        sz.set("height", str(max(0, int(sz.get("height")) + new_h - old_h)))
 
 
 # ───────────────────────── 학습 ─────────────────────────
@@ -969,18 +719,10 @@ def generate(base_bytes: bytes, tpl: dict, data: dict) -> tuple[bytes, list[str]
     new_id = _new_id_factory(doc)
 
     # 표 칸 입력값 반영 (원본 문단에 먼저 적용한 뒤 복사)
-    tpl_tables = tpl.get("tables", [])
-    specs = {c["key"]: c for t in tpl_tables for row in t["rows"] for c in row
-             if c["type"] == "field" and not c.get("rep")}
+    specs = {c["key"]: c for t in tpl.get("tables", []) for row in t["rows"] for c in row if c["type"] == "field"}
     cells_in = data.get("cells", {}) or {}
-    doc_t = doc_tables(doc)
-    resizes = []
-    for t in tpl_tables:
-        vals = repeat_rows_for(t, data)
-        if vals is not None and t["gti"] < len(doc_t):
-            resizes.append((doc_t[t["gti"]]["el"], t["repeat"], vals))
     if specs:
-        for gti, t in enumerate(doc_t):
+        for gti, t in enumerate(doc_tables(doc)):
             for row in t["rows"]:
                 for cell in row:
                     spec = specs.get(_cell_key(gti, cell))
@@ -989,9 +731,6 @@ def generate(base_bytes: bytes, tpl: dict, data: dict) -> tuple[bytes, list[str]
                     val = str(cells_in.get(spec["key"], spec["default"]))
                     if val != cell["text"]:
                         _set_cell_text(cell["el"], val, new_id)
-    # 반복 줄은 칸 입력을 마친 뒤, 뒤쪽 표부터 (앞 표의 줄 복사가 뒤 표 번호를 바꾸지 않게)
-    for tbl, rep, vals in reversed(resizes):
-        resize_repeat(tbl, rep["start"], rep["end"], rep["cols"], vals, new_id)
 
     return _assemble(doc, plan, new_id)
 
@@ -1095,14 +834,7 @@ def preview_text(tpl: dict, data: dict, base_bytes: bytes) -> list[str]:
             continue
         if s is not None and s < len(doc.texts) and s in by_src:
             for tb in by_src[s]:
-                rep_rows = repeat_rows_for(tb, data)
-                rep = tb.get("repeat") or {}
                 for row in tb["rows"]:
-                    if rep_rows is not None and rep["start"] <= (row[0]["r"] if row else -1) <= rep["end"]:
-                        if row[0]["r"] == rep["start"]:
-                            for vals in rep_rows or [[""] * len(rep["cols"])]:
-                                out.append("│ " + " │ ".join(v.replace(chr(10), " / ") for v in vals) + " │")
-                        continue
                     vals = [str(cells_in.get(c["key"], c["default"])) if c["type"] == "field" else c["text"] for c in row]
                     out.append("│ " + " │ ".join(v.replace(chr(10), " / ") for v in vals) + " │")
             continue

@@ -101,7 +101,6 @@ class GenerateIn(BaseModel):
     outline: list[dict] | None = None
     attach: list[str] | None = None
     cells: dict[str, str] = {}
-    rows: dict[str, list[list[str]]] = {}
     save_history: bool = True
 
 
@@ -285,9 +284,7 @@ def download_sample(form_id: int, sample_id: int):
 @app.put("/api/forms/{form_id}/overrides")
 def put_overrides(form_id: int, body: OverridesIn):
     _form_or_404(form_id)
-    ov: dict = {"lines": {k: v for k, v in body.lines.items()
-                          if (v in ("fixed", "field") and re.fullmatch(r"[hf]\d+|c\d+_\d+_\d+", k))
-                          or (v in ("on", "off") and re.fullmatch(r"rep\d+", k))}}
+    ov: dict = {"lines": {k: v for k, v in body.lines.items() if v in ("fixed", "field") and re.fullmatch(r"[hf]\d+|c\d+_\d+_\d+", k)}}
     if body.base_sample_id is not None:
         ov["base_sample_id"] = body.base_sample_id
     S.set_overrides(form_id, ov)
