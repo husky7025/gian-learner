@@ -22,7 +22,7 @@ from app import hwpx_engine as E  # noqa: E402
 from app import packs as P  # noqa: E402
 
 SLOGAN = "꿈을 키우는 배움, 함께 자라는 푸른솔!"
-SCHOOL = "푸른솔고등학교"
+SCHOOL = "푸른솔고등학교"  # 가상의 학교
 
 
 def item(depth, label, value):
@@ -32,6 +32,7 @@ def item(depth, label, value):
 # ───────── 기안 (K-에듀파인 본문: 제목 + 본문 + 붙임) ─────────
 GIAN = [
     {
+        "name": "2027학년도 교원 수업 나눔 연수 실시 계획",
         "fields": {"h0": "2027학년도 교원 수업 나눔 연수 실시 계획"},
         "outline": [
             item(0, "관련", "푸른솔고등학교-1001(2027. 3. 2.)"),
@@ -45,6 +46,7 @@ GIAN = [
         "attach": ["교원 수업 나눔 연수 신청자 명단 1부"],
     },
     {
+        "name": "2027학년도 학부모 진로 특강 안내 가정통신문 배부",
         "fields": {"h0": "2027학년도 학부모 진로 특강 안내 가정통신문 배부"},
         "outline": [
             item(0, "관련", "푸른솔고등학교-1002(2027. 3. 5.)"),
@@ -60,14 +62,14 @@ GIAN = [
 
 # ───────── 품의 ─────────
 PUMUI = [
-    {"outline": [
+    {"name": "[2027학년도] 과학 동아리 실험 재료 구입 품의", "outline": [
         item(0, "건명", "[2027학년도] 과학 동아리 활동을 위한 실험 재료 구입"),
         item(0, "금액", "250,000원"),
         item(0, "품명", "실험 재료"),
         item(0, "기간", "2027.04.01. - 2027.04.15."),
         item(0, "내역", "비커 외 12종(붙임 구입목록 참조)"),
     ], "attach": ["견적서 1부", "구입목록 1부"]},
-    {"outline": [
+    {"name": "[2027학년도] 학부모 진로 특강 강사비 품의", "outline": [
         item(0, "건명", "[2027학년도] 학부모 진로 특강 강사비 지급"),
         item(0, "금액", "300,000원"),
         item(0, "품명", "강사비"),
@@ -85,11 +87,12 @@ GATONG_HEAD = {
 }
 GATONG = [
     {
+        "name": "2027학년도 1학년 현장체험학습 참가 동의서 가정통신문",
         "fields": {**GATONG_HEAD,
                    "h6": "교육과정 운영 계획에 따라, 교과 수업에서 배운 내용을 직접 체험하며 탐구심을 기를 수 있도록 아래와 같이 1학년 현장체험학습을 실시하고자 합니다. 자녀가 안전하고 뜻깊은 시간을 보낼 수 있도록 4월 9일(금)까지 참가 동의서 제출을 부탁드립니다."},
         "items": [
             ("현장체험학습 일시", "2027. 4. 23.(금) 08:30 ~ 16:00"),
-            ("현장체험학습 장소", "국립중앙과학관(대전 유성구) 일원"),
+            ("현장체험학습 장소", "국립중앙과학관일원"),
             ("현장체험학습 경비", "1인당 15,000원 내외(버스 임차료, 참가 인원에 따라 변동 가능)"),
         ],
         "paras": [
@@ -103,7 +106,7 @@ GATONG = [
             "푸른솔고등학교장 귀하",
         ],
         "cells": {
-            "c0_0_1": "가 정 통 신 문\n담당자 : 교사 ○ ○ ○    ☏ 042-000-0000",
+            "c0_0_1": "가 정 통 신 문\n담당자 : 교사 ○ ○ ○    ☏ 000-0000",
             "c0_0_2": "제2027–21호",
             "c1_0_0": "현장체험학습 경비 지원 안내\n\n- 지원 대상: 교육급여 수급 가정 학생\n- 지원 내용: 체험학습 경비 전액 지원\n  * 신청 방법 및 시기 추후 안내 예정",
             "c2_0_0": "현장체험학습 참가",
@@ -112,6 +115,7 @@ GATONG = [
         },
     },
     {
+        "name": "2027학년도 겨울방학 방과후학교 수강 신청 가정통신문",
         "fields": {**GATONG_HEAD,
                    "h6": "방학 중에도 자녀가 계획적으로 학습할 수 있도록 아래와 같이 겨울방학 방과후학교를 운영하고자 합니다. 자녀와 충분히 상의하신 후 12월 10일(금)까지 수강 신청서 제출을 부탁드립니다."},
         "items": [
@@ -130,7 +134,7 @@ GATONG = [
             "푸른솔고등학교장 귀하",
         ],
         "cells": {
-            "c0_0_1": "가 정 통 신 문\n담당자 : 교사 ○ ○ ○    ☏ 042-000-0000",
+            "c0_0_1": "가 정 통 신 문\n담당자 : 교사 ○ ○ ○    ☏ 000-0000",
             "c0_0_2": "제2027–132호",
             "c1_0_0": "방과후학교 자유수강권 지원 안내\n\n- 지원 대상: 교육급여 수급 가정 및 차상위 계층 학생\n- 지원 금액: 연간 60만원 이내\n  * 신청 방법은 담임 선생님께 문의",
             "c2_0_0": "방과후학교 수강",
@@ -195,7 +199,22 @@ def build(base: bytes, variant: dict) -> bytes:
     outline = fill_outline(tpl, variant) if "paras" in variant else variant.get("outline", [])
     data = {"fields": fields, "cells": cells, "outline": outline, "attach": variant.get("attach", [])}
     out, _ = E.generate(base, tpl, data)
-    return P.scrub(out)
+    return blank_images(P.scrub(out))
+
+
+def blank_images(data: bytes) -> bytes:
+    """학교 교표·사진 같은 그림은 빈 그림으로 바꾼다(실제 학교가 드러나지 않게)."""
+    import io
+    import zipfile
+    zin = zipfile.ZipFile(io.BytesIO(data))
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        for info in zin.infolist():
+            raw = zin.read(info.filename)
+            if info.filename.startswith("BinData/") and info.filename.lower().endswith((".png", ".jpg", ".jpeg", ".bmp", ".gif")):
+                raw = P.blank_png()
+            z.writestr(info, raw)
+    return buf.getvalue()
 
 
 def main():
@@ -209,7 +228,7 @@ def main():
     for cat, name, path, variants in (("gian", "기안", a.gian, GIAN), ("pumui", "품의", a.pumui, PUMUI),
                                       ("gatong", "가정통신문", a.gatong, GATONG)):
         base = Path(path).read_bytes()
-        samples = [{"id": i, "data": build(base, v)} for i, v in enumerate(variants)]
+        samples = [{"id": i, "data": build(base, v), "pack_filename": v["name"] + ".hwpx"} for i, v in enumerate(variants)]
         forms.append({"name": name, "category": cat, "overrides": {}, "samples": samples})
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)

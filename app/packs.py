@@ -137,7 +137,8 @@ def export_pack(forms: list[dict]) -> bytes:
             for si, s in enumerate(f["samples"]):
                 path = f"forms/{fi + 1}/sample{si + 1}.hwpx"
                 z.writestr(path, scrub(s["data"]))
-                entry["samples"].append({"file": path, "filename": f"샘플 {si + 1}.hwpx"})
+                # pack_filename은 기본 꾸러미를 만들 때만 씀 (앱의 내보내기는 원래 파일 이름을 넣지 않음)
+                entry["samples"].append({"file": path, "filename": s.get("pack_filename") or f"샘플 {si + 1}.hwpx"})
             manifest["forms"].append(entry)
         z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))
     return buf.getvalue()

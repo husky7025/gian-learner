@@ -13,7 +13,7 @@
 - 테스트 시 실제 데이터 폴더를 건드리지 않도록 `GIAN_DATA_DIR` 환경변수로 임시 폴더를 지정한다.
 - 샘플 hwpx(학교 문서·개인정보 포함 가능)는 프로젝트 폴더나 Git에 넣지 않는다.
 - 분류: forms.category = gian(기안)/pumui(품의)/gatong(가정통신문). 분류에 양식이 없으면 기본 양식을 자동 생성.
-- 양식 꾸러미: `app/packs.py`(내보내기 시 작성자·미리보기 그림·파일명 제거, 개인정보 검사). 기본 꾸러미 `packs/기본양식.gianpack`은 `tools/make_default_pack.py`로 가상 예시만 넣어 생성 — 다시 만들면 원본 이름·전화번호가 없는지 바이트 단위로 검사 후 커밋. 2026-11-21 재생성: 기준 서식은 학습용/ 폴더(기안=연수 실시 계획, 품의=도서 구입, 가정통신문=수학여행 동의서), 가정통신문 예시는 학부모 배부용 안내문·기안 예시 중 하나는 가정통신문 배부 기안.
+- 양식 꾸러미: `app/packs.py`(내보내기 시 작성자·미리보기 그림·파일명 제거, 개인정보 검사). 기본 꾸러미 `packs/기본양식.gianpack`은 `tools/make_default_pack.py`로 가상 예시만 넣어 생성 — 다시 만들면 원본 이름·전화번호가 없는지 바이트 단위로 검사 후 커밋. 2026-11-21 재생성: 기준 서식은 학습용/ 폴더(기안=연수 실시 계획, 품의=도서 구입, 가정통신문=수학여행 동의서), 가정통신문 예시는 학부모 배부용 안내문·기안 예시 중 하나는 가정통신문 배부 기안. 학교는 가상의 「푸른솔고등학교」, 그림(교표)은 빈 그림, 파일 이름도 가상(pack_filename) — 실제 학교 이름·교표를 넣지 않는다. 사용자 PC 앱 데이터도 이 가상 예시로 교체함(실제 샘플은 백업 20261121-223419).
 - 버전: `app/version.py` = 태그 vX.Y.Z (Actions가 불일치 시 실패). 출시는 `.github/workflows/release.yml`(windows-latest, PyInstaller onedir --windowed, exe 실행 검사 후 gh release create).
 - ODT·PDF 샘플은 `app/convert.py`로 기본 꾸러미 품의 예시 서식의 hwpx로 변환(content.hpf description=gian-learner:converted). 기준 서식은 원본 hwpx 샘플을 우선.
 - PDF는 pypdf(BSD) 사용. PyMuPDF는 AGPL이라 쓰지 않음.
