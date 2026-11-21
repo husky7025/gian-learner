@@ -105,19 +105,20 @@
   <h3>어떤 AI를 쓸까요? (⚙ 설정 → 🤖 AI 작성 설정)</h3>
   <table class="terms">
     <tr><td>로컬 AI (기본)</td><td>이 컴퓨터 안에서만 작동합니다. <b>인터넷 전송·비용 없음.</b> 대신 「Ollama」라는 프로그램 설치가 필요하고, 메모리 16GB 이상 컴퓨터를 권장합니다. 문장 품질은 아래 셋보다 낮을 수 있고 1~3분 걸릴 수 있습니다.</td></tr>
-    <tr><td>Claude</td><td>Anthropic의 AI. 공문서 문장 품질이 좋습니다. API 키 필요(사용한 만큼 요금).</td></tr>
-    <tr><td>Gemini</td><td>Google의 AI. API 키 필요(무료 사용량이 있을 수 있음).</td></tr>
+    <tr><td>Claude</td><td>Anthropic의 AI. 공문서 문장 품질이 좋습니다. API 키 필요(사용한 만큼 요금). <b>무료 사용량이 없고</b>, claude.ai 무료·Pro 구독으로는 쓸 수 없습니다.</td></tr>
+    <tr><td>Gemini</td><td>Google의 AI. API 키 필요. <b>무료 키로도 쓸 수 있습니다</b>(사용 횟수 제한 있음). 단, 결제를 연결하지 않은 무료 키로 보낸 내용은 <b>Google이 제품 개선에 쓸 수 있습니다.</b> 결제를 연결한 유료 등급은 쓰지 않습니다.</td></tr>
     <tr><td>ChatGPT</td><td>OpenAI의 AI. API 키 필요(사용한 만큼 요금).</td></tr>
   </table>
   <div class="ok">🔒 Claude · Gemini · ChatGPT를 쓰면 <b>적은 내용과 샘플 기안 글</b>이 그 회사 서버로 보내집니다.
     이때 전화번호·이메일·주민번호와 「교사 ○○○」, 「성명: ○○○」 같은 이름은 <b>가려서</b> 보냅니다. 처음 쓸 때 한 번 동의를 묻습니다.
-    학생 개인정보가 들어 있는 기안이라면 <b>로컬 AI</b>를 쓰는 것이 가장 안전합니다.</div>
+    학생 개인정보가 들어 있는 기안이라면 <b>로컬 AI</b>를 쓰는 것이 가장 안전합니다.
+    특히 <b>Gemini 무료 키</b>는 보낸 내용이 Google의 제품 개선에 쓰일 수 있으니, 민감한 내용이 없는 기안에만 쓰세요.</div>
 
   <h3>API 키 받는 방법 (Claude · Gemini · ChatGPT)</h3>
   <p>API 키는 AI를 쓰기 위한 <b>비밀번호 같은 긴 글자</b>입니다. 다른 사람에게 알려 주지 마세요.</p>
   <table class="terms">
-    <tr><td>Claude</td><td><b>console.anthropic.com</b> 가입 → 결제 수단 등록(Billing) → <b>API Keys</b> → <b>Create Key</b> → 나온 키(sk-ant-…)를 복사</td></tr>
-    <tr><td>Gemini</td><td><b>aistudio.google.com</b> (구글 계정으로 로그인) → <b>Get API key</b> → <b>Create API key</b> → 복사</td></tr>
+    <tr><td>Claude</td><td><b>platform.claude.com</b> 가입 → 크레딧 결제(Billing) → <b>API Keys</b> → <b>Create Key</b> → 나온 키(sk-ant-…)를 복사</td></tr>
+    <tr><td>Gemini</td><td><b>aistudio.google.com</b> (구글 계정으로 로그인) → <b>Get API key</b> → <b>Create API key</b> → 복사 (결제 연결 없이 무료로 시작할 수 있습니다)</td></tr>
     <tr><td>ChatGPT</td><td><b>platform.openai.com</b> 가입 → 결제 수단 등록(Billing) → <b>API keys</b> → <b>Create new secret key</b> → 복사 (ChatGPT 유료 구독과는 별개입니다)</td></tr>
   </table>
   <ol class="steps">

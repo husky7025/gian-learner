@@ -685,6 +685,12 @@ $("#updNow").addEventListener("click", async () => {
 // ───────── AI 작성 ─────────
 let AIS = null;
 const CLOUD_NAME = { claude: "Anthropic(Claude)", gemini: "Google(Gemini)", openai: "OpenAI(ChatGPT)" };
+// 제공자별 요금·데이터 사용 안내 (2026-11 기준)
+const CLOUD_EXTRA = {
+  gemini: "⚠ 결제를 연결하지 않은 무료 키로 보낸 내용은 Google이 제품 개선에 쓸 수 있습니다(유료 등급은 쓰지 않음). 학생 정보 등 민감한 내용이 든 기안은 로컬 AI를 쓰세요.",
+  claude: "Claude API는 무료 사용량이 없고, claude.ai 무료·Pro 구독과도 별개입니다. Claude Console에서 크레딧을 결제해야 키가 작동합니다.",
+  openai: "OpenAI API는 ChatGPT 유료 구독과 별개이며, 사용한 만큼 요금이 나옵니다.",
+};
 async function loadAI() {
   try { AIS = await getJSON("/api/ai"); } catch (_) { return; }
   const p = AIS.providers.find((x) => x.id === AIS.provider);
@@ -706,7 +712,7 @@ function showAIFields() {
   $("#aiKeyState").textContent = k && k.set ? `✔ 저장됨 ${k.hint}` : "키 없음";
   $("#aiCloudNote").textContent = pid === "ollama"
     ? "로컬 AI는 이 컴퓨터 안에서만 작동합니다(인터넷 전송 없음). Ollama 설치와 모델 받기가 필요합니다."
-    : `AI로 작성할 때 적은 내용과 샘플 기안 글이 ${CLOUD_NAME[pid]} 서버로 보내집니다. 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다. 사용 요금은 각자의 API 계정에 청구됩니다.`;
+    : `AI로 작성할 때 적은 내용과 샘플 기안 글이 ${CLOUD_NAME[pid]} 서버로 보내집니다. 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다. 사용 요금은 각자의 API 계정에 청구됩니다. ${CLOUD_EXTRA[pid] || ""}`;
   $("#aiSetState").textContent = "";
 }
 $("#aiProvider").addEventListener("change", showAIFields);
@@ -752,7 +758,7 @@ async function aiDraft() {
     catch (e) {
       if (e.message !== "CONSENT_REQUIRED") throw e;
       const name = CLOUD_NAME[AIS.provider] || AIS.provider;
-      if (!confirm(`${name} AI를 처음 사용합니다.\n\n· 적은 내용과 샘플 기안 글이 ${name} 서버로 보내집니다.\n· 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다.\n· 사용 요금은 내 API 계정에 청구됩니다.\n\n계속할까요?`)) { $("#aiState").textContent = ""; return; }
+      if (!confirm(`${name} AI를 처음 사용합니다.\n\n· 적은 내용과 샘플 기안 글이 ${name} 서버로 보내집니다.\n· 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다.\n· 사용 요금은 내 API 계정에 청구됩니다.\n${AIS.provider === "gemini" ? "· ⚠ 무료 키(결제 미연결)로 보낸 내용은 Google이 제품 개선에 쓸 수 있습니다. 민감한 내용은 보내지 마세요.\n" : ""}\n계속할까요?`)) { $("#aiState").textContent = ""; return; }
       await api("/api/ai", { method: "PUT", json: { consent: { [AIS.provider]: true } } });
       r = await getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null } });
     }
