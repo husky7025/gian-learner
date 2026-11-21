@@ -39,8 +39,12 @@ def main():
         "--add-data", f"{ROOT / 'app' / 'static'}{sep}app/static",
         "--add-data", f"{ROOT / 'packs'}{sep}packs",
         "--collect-submodules", "uvicorn",
+        "--collect-submodules", "webview",
+        "--collect-data", "webview",
         "--hidden-import", "multipart",
         "--hidden-import", "python_multipart",
+        "--hidden-import", "clr_loader",
+        "--hidden-import", "pythonnet",
         "--paths", str(ROOT),
         "--exclude-module", "numpy", "--exclude-module", "PIL", "--exclude-module", "tkinter",
     ])
