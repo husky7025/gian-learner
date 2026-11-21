@@ -88,6 +88,9 @@ def _load() -> dict:
     cfg.setdefault("keys", {})
     cfg.setdefault("consent", {})
     cfg.setdefault("ollama_url", "http://127.0.0.1:11434")
+    for p, m in list(cfg["models"].items()):  # 지원 끝난 모델이 저장돼 있으면 기본 모델로 (설정 화면에도 바로 보이게)
+        if m in RETIRED_MODELS.get(p, set()):
+            cfg["models"].pop(p)
     return cfg
 
 
