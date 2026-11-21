@@ -239,15 +239,16 @@ SYSTEM = """당신은 대한민국 학교의 공문서(기안문·품의서·가
 
 규칙
 1. 샘플 기안들의 문장 투, 항목 순서, 항목 제목, 끝맺음 표현(예: "…을 다음과 같이 품의하고자 합니다.")을 그대로 따릅니다.
-2. 교사가 준 내용에 없는 사실(금액, 수량, 날짜, 시간, 장소, 인원, 사람 이름, 문서번호)은 지어내지 않습니다. 필요한데 모르면 "○○"으로 비워 둡니다.
-3. 항목 번호(1. 가. 1) 가) 등)는 쓰지 않습니다. 번호는 프로그램이 depth로 붙입니다(0=1. 1=가. 2=1) 3=가)).
-4. outline의 각 항목: label에는 "일시", "장소"처럼 짧은 항목 제목만, value에는 내용만 씁니다. 제목 없는 문장 항목은 label을 ""로 둡니다.
-5. "끝." 표시와 붙임 번호는 쓰지 않습니다(자동). attach에는 "견적서 1부"처럼 붙임 문서 이름과 부수만 씁니다. 붙임이 없으면 빈 목록입니다.
-6. 날짜는 "2026. 11. 20.(금)", 시간은 "14:00~16:00", 금액은 "금250,000원(금이십오만원)" 형식으로 씁니다.
-7. fields의 각 값에는 앞의 제목(예: "제목  ")을 빼고 내용만 씁니다. cells(표 칸)도 내용만 씁니다.
-8. 양식 구조에 있는 항목은 되도록 모두 채우고, 교사의 내용에 맞지 않는 항목은 빼거나 바꿔도 됩니다. 필요한 항목은 추가해도 됩니다.
-9. filename은 기안 제목(건명)으로 짧게 씁니다.
-10. 반드시 지정한 JSON 형식으로만 답합니다."""
+2. 교사가 준 내용과 [참고 서류]에 없는 사실(금액, 수량, 날짜, 시간, 장소, 인원, 사람 이름, 문서번호)은 지어내지 않습니다. 필요한데 모르면 "○○"으로 비워 둡니다.
+3. [참고 서류](공문·견적서·계획서 등)가 주어지면 서류 속 핵심 사실(제목, 일시, 장소, 대상, 금액, 품목, 근거 문서번호 등)을 정확히 반영해 이 양식에 맞는 기안을 작성합니다.
+4. 항목 번호(1. 가. 1) 가) 등)는 쓰지 않습니다. 번호는 프로그램이 depth로 붙입니다(0=1. 1=가. 2=1) 3=가)).
+5. outline의 각 항목: label에는 "일시", "장소"처럼 짧은 항목 제목만, value에는 내용만 씁니다. 제목 없는 문장 항목은 label을 ""로 둡니다.
+6. "끝." 표시와 붙임 번호는 쓰지 않습니다(자동). attach에는 "견적서 1부"처럼 붙임 문서 이름과 부수만 씁니다. 붙임이 없으면 빈 목록입니다.
+7. 날짜는 "2026. 11. 20.(금)", 시간은 "14:00~16:00", 금액은 "금250,000원(금이십오만원)" 형식으로 씁니다.
+8. fields의 각 값에는 앞의 제목(예: "제목  ")을 빼고 내용만 씁니다. cells(표 칸)도 내용만 씁니다.
+9. 양식 구조에 있는 항목은 되도록 모두 채우고, 교사의 내용에 맞지 않는 항목은 빼거나 바꿔도 됩니다. 필요한 항목은 추가해도 됩니다.
+10. filename은 기안 제목(건명)으로 짧게 씁니다.
+11. 반드시 지정한 JSON 형식으로만 답합니다."""
 
 
 def build_schema(tpl: dict) -> dict:
@@ -314,13 +315,23 @@ def sample_texts(sample_bytes: list[bytes], cloud: bool) -> list[str]:
     return res
 
 
-def build_prompt(tpl: dict, samples: list[str], brief: str, ref: date, cloud: bool = False) -> str:
+def build_prompt(tpl: dict, samples: list[str], brief: str, ref: date, cloud: bool = False,
+                 refs: list[tuple[str, str]] | None = None) -> str:
     structure = json.dumps(describe_template(tpl, cloud), ensure_ascii=False, indent=1)
     if cloud:
         structure = redact(structure)
+    brief_text = brief.strip() or "(별도 코멘트 없음 — 아래 [참고 서류] 내용을 바탕으로 이 양식에 맞는 기안을 작성해 주세요)"
     parts = [
         f"오늘(기안 기준일): {ref.year}. {ref.month}. {ref.day}.({WEEK[ref.weekday()]})",
-        "", "[교사가 적은 내용]", brief.strip(), "",
+        "", "[교사가 적은 내용]", brief_text, "",
+    ]
+    if refs:
+        parts.append("[참고 서류] (아래 서류의 사실·수치·일정을 근거로 기안을 작성하세요)")
+        for name, txt in refs:
+            body = redact(txt) if cloud else txt
+            parts += [f"--- 참고 서류: {name} ---", body]
+        parts.append("")
+    parts += [
         "[이 양식의 구조] (fields·cells의 키는 그대로 쓰고, outline은 아래 구성을 참고해 새로 씁니다)",
         structure, "",
         "[이 학교의 기존 기안 샘플] (문체와 구성을 따라 쓰세요. 내용은 베끼지 마세요)",
@@ -364,10 +375,19 @@ def _claude_client(key: str):
     return anthropic, anthropic.Anthropic(**kw)
 
 
-def _call_claude(key: str, model: str, prompt: str, schema: dict) -> str:
+def _call_claude(key: str, model: str, prompt: str, schema: dict, media: list[dict] | None = None) -> str:
     anthropic, client = _claude_client(key)
+    if media:
+        content: list | str = []
+        for m in media:
+            b64 = base64.b64encode(m["data"]).decode("ascii")
+            btype = "document" if m["mime"] == "application/pdf" else "image"
+            content.append({"type": btype, "source": {"type": "base64", "media_type": m["mime"], "data": b64}})
+        content.append({"type": "text", "text": prompt})
+    else:
+        content = prompt
     common = dict(model=model, max_tokens=16000, system=SYSTEM,
-                  messages=[{"role": "user", "content": prompt}],
+                  messages=[{"role": "user", "content": content}],
                   output_config={"format": {"type": "json_schema", "schema": schema}})
     try:
         if model in FALLBACK_MODELS:  # 안전 장치로 거절되면 다른 모델로 자동 재시도
@@ -407,10 +427,13 @@ def _call_openai(key: str, model: str, prompt: str, schema: dict) -> str:
     return ch.get("message", {}).get("content") or ""
 
 
-def _call_gemini(key: str, model: str, prompt: str, schema: dict) -> str:
+def _call_gemini(key: str, model: str, prompt: str, schema: dict, media: list[dict] | None = None) -> str:
     url, hdr = f"{GEMINI_URL}/models/{model}:generateContent", {"x-goog-api-key": key}
     text = prompt + "\n\n[답 형식(JSON 스키마)]\n" + json.dumps(schema, ensure_ascii=False)
-    base = {"systemInstruction": {"parts": [{"text": SYSTEM}]}, "contents": [{"role": "user", "parts": [{"text": text}]}]}
+    parts: list[dict] = [{"text": text}]
+    for m in media or []:
+        parts.append({"inlineData": {"mimeType": m["mime"], "data": base64.b64encode(m["data"]).decode("ascii")}})
+    base = {"systemInstruction": {"parts": [{"text": SYSTEM}]}, "contents": [{"role": "user", "parts": parts}]}
     gen = {"responseMimeType": "application/json", "temperature": 0.3}
     try:  # 형식 강제(responseJsonSchema) — 모델이 받아들이지 않으면(400) 예전 방식(형식 안내만)으로 한 번 더
         data = _http_json(url, {**base, "generationConfig": {**gen, "responseJsonSchema": schema}}, hdr, 180)
@@ -520,11 +543,19 @@ def clean_result(raw: dict, tpl: dict, ref: date) -> dict:
     return {"filename": filename, "fields": fields, "outline": outline, "attach": attach, "cells": cells}
 
 
-def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date) -> dict:
-    if not brief.strip():
-        raise AIError("작성할 내용을 적어 주세요.")
+VISION_PROVIDERS = {"gemini", "claude"}
+
+
+def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date,
+          refs: list[tuple[str, str]] | None = None, media: list[dict] | None = None) -> dict:
+    refs = refs or []
+    media = media or []
+    if not brief.strip() and not refs and not media:
+        raise AIError("작성할 내용을 적거나 참고 서류를 첨부해 주세요.")
     cfg = _load()
     provider = cfg["provider"]
+    if media and provider not in VISION_PROVIDERS:
+        raise AIError("사진·스캔 PDF 읽기는 Gemini 또는 Claude API가 있는 선생님만 사용할 수 있습니다. (⚙ 설정 → 🤖 AI 설정에서 Gemini 또는 Claude를 선택해 주세요)")
     model = cfg["models"].get(provider) or PROVIDERS[provider]["default_model"]
     cloud = provider != "ollama"
     if cloud and not cfg["consent"].get(provider):
@@ -536,15 +567,18 @@ def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date) -> dict:
     if model in RETIRED_MODELS.get(provider, set()):  # 지원 끝난 모델이면 기본 모델로
         switched, model = model, PROVIDERS[provider]["default_model"]
     schema = build_schema(tpl)
-    prompt = build_prompt(tpl, sample_texts(sample_bytes, cloud), brief[:4000], ref, cloud)
+    if media:
+        names = ", ".join(m["name"] for m in media)
+        refs = [*refs, (f"첨부 이미지·스캔 PDF({names})", "함께 첨부된 이미지/스캔 PDF 파일의 내용을 직접 읽어 기안에 반영하세요.")]
+    prompt = build_prompt(tpl, sample_texts(sample_bytes, cloud), brief[:4000], ref, cloud, refs)
 
     def call(m: str) -> str:
         if provider == "claude":
-            return _call_claude(key, m, prompt, schema)
+            return _call_claude(key, m, prompt, schema, media)
         if provider == "openai":
             return _call_openai(key, m, prompt, schema)
         if provider == "gemini":
-            return _call_gemini(key, m, prompt, schema)
+            return _call_gemini(key, m, prompt, schema, media)
         return _call_ollama(cfg["ollama_url"], m, prompt, schema)
 
     try:

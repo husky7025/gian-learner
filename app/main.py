@@ -545,18 +545,50 @@ def ai_models(provider: str):
 
 
 @app.post("/api/forms/{form_id}/ai-draft")
-def ai_draft(form_id: int, body: DraftIn):
+async def ai_draft(form_id: int, request: Request):
+    import asyncio
     from datetime import date as _date
     f = _form_or_404(form_id)
     tpl, samples = _learn(f)
     if not tpl.get("ready"):
         raise HTTPException(400, "먼저 샘플을 올려 양식을 학습시켜 주세요.")
+    ct = (request.headers.get("content-type") or "").lower()
+    refs: list[tuple[str, str]] = []
+    media: list[dict] = []
+    if "multipart/form-data" in ct:
+        form_data = await request.form()
+        brief = str(form_data.get("brief") or "")
+        date_str = str(form_data.get("date") or "") or None
+        uploads = [u for u in form_data.getlist("files") if hasattr(u, "read")]
+        if len(uploads) > 3:
+            raise HTTPException(400, "참고 서류는 최대 3개까지 올릴 수 있습니다.")
+        for up in uploads:
+            name = Path(getattr(up, "filename", None) or "참고서류").name
+            data = await up.read(MAX_UPLOAD + 1)
+            if len(data) > MAX_UPLOAD:
+                raise HTTPException(400, f"{name}: 20MB를 넘는 파일은 올릴 수 없습니다.")
+            try:
+                item = C.extract_ref_item(name, data)
+            except C.ConvertError as e:
+                raise HTTPException(400, f"{name}: {e}") from e
+            if item["kind"] == "media":
+                media.append(item)
+            else:
+                refs.append((name, item["text"]))
+    else:
+        try:
+            raw = await request.json()
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(400, "잘못된 요청 형식입니다.") from e
+        body = DraftIn(**(raw if isinstance(raw, dict) else {}))
+        brief, date_str = body.brief, body.date
     try:
-        ref = _date.fromisoformat(body.date) if body.date else _date.today()
+        ref = _date.fromisoformat(date_str) if date_str else _date.today()
     except ValueError:
         ref = _date.today()
     try:
-        return AI.draft(tpl, [S.sample_bytes(s) for s in samples], body.brief, ref)
+        res = await asyncio.to_thread(AI.draft, tpl, [S.sample_bytes(s) for s in samples], brief, ref, refs, media)
+        return {**res, "ref_count": len(refs) + len(media), "vision_count": len(media)}
     except AI.AIError as e:
         if str(e) == "CONSENT_REQUIRED":
             raise HTTPException(409, "CONSENT_REQUIRED") from e

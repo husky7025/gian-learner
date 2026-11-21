@@ -163,3 +163,73 @@ def test_gemini_schema_fallback(fake_gemini):
     FakeGemini.calls.clear()
     AI.draft(TPL, [], "시험", date(2026, 11, 21))
     assert FakeGemini.calls == [("gemini-3.6-flash", True)]
+
+
+# ───────── AI 참고 서류 ─────────
+
+def test_extract_ref_text():
+    from app import convert as C
+    assert "과학실" in C.extract_ref_text("안내.txt", "장소: 과학실".encode("utf-8"))
+    assert "견적" in C.extract_ref_text("견적.txt", "품목 견적서".encode("cp949"))
+    with pytest.raises(C.ConvertError):
+        C.extract_ref_text("구버전.hwp", b"dummy")
+    with pytest.raises(C.ConvertError):
+        C.extract_ref_text("오즈.ozd", b"dummy")
+
+
+def test_ai_draft_with_ref_file_only_and_redact(client, fake_gemini):
+    _gemini("gemini-3.6-flash")
+    f = forms_by_cat(client)["pumui"]
+    ref_body = "견적서\n품목: 비커 10개\n금액: 150,000원\n담당자: 교사 홍길동 (010-9876-5432)".encode("utf-8")
+    r = client.post(
+        f"/api/forms/{f['id']}/ai-draft",
+        data={"brief": "", "date": "2026-11-21"},
+        files=[("files", ("견적서.txt", ref_body, "text/plain"))],
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["ref_count"] == 1
+    assert "참고 서류: 견적서.txt" in fake_gemini.last_prompt
+    assert "비커 10개" in fake_gemini.last_prompt
+    assert "010-9876-5432" not in fake_gemini.last_prompt
+    assert "홍길동" not in fake_gemini.last_prompt
+
+
+def test_ai_draft_rejects_hwp_ref(client):
+    _gemini("gemini-3.6-flash")
+    f = forms_by_cat(client)["gian"]
+    r = client.post(
+        f"/api/forms/{f['id']}/ai-draft",
+        data={"brief": "기안 써줘"},
+        files=[("files", ("공문.hwp", b"old-hwp", "application/octet-stream"))],
+    )
+    assert r.status_code == 400
+    assert "HWPX" in r.json()["detail"]
+
+
+def test_ai_draft_vision_image_gemini_ok_and_ollama_blocked(client, fake_gemini):
+    from app import packs as P
+    png = P.blank_png()
+    f = forms_by_cat(client)["pumui"]
+    _gemini("gemini-3.6-flash")
+    fake_gemini.last_media_count = 0
+    r = client.post(
+        f"/api/forms/{f['id']}/ai-draft",
+        data={"brief": ""},
+        files=[("files", ("견적서.png", png, "image/png"))],
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["vision_count"] == 1
+    assert fake_gemini.last_media_count == 1
+
+    # 로컬 AI(Ollama)에서는 Gemini/Claude 전용 안내와 함께 차단
+    AI.update_settings({"provider": "ollama"})
+    try:
+        r2 = client.post(
+            f"/api/forms/{f['id']}/ai-draft",
+            data={"brief": ""},
+            files=[("files", ("견적서.png", png, "image/png"))],
+        )
+        assert r2.status_code == 400
+        assert "Gemini 또는 Claude" in r2.json()["detail"]
+    finally:
+        _gemini("gemini-3.6-flash")

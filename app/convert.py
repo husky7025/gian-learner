@@ -172,3 +172,70 @@ def to_hwpx(filename: str, data: bytes) -> bytes:
     from . import hwpx_engine as E
     lines = read_lines(filename, data)
     return E.from_lines(base_hwpx(), lines, CONVERTED_MARK)
+
+
+def extract_ref_text(filename: str, data: bytes, max_chars: int = 4000) -> str:
+    """AI 참고 서류(.hwpx·.pdf·.odt·.txt)에서 본문·표 텍스트를 뽑는다 (디스크에 저장하지 않음)."""
+    low = (filename or "").lower()
+    if low.endswith(".hwp"):
+        raise ConvertError("구버전 .hwp 파일은 한글에서 HWPX 또는 PDF로 저장해 올려 주세요.")
+    if low.endswith(".ozd"):
+        raise ConvertError(".ozd(오즈 문서)는 오즈 뷰어에서 [PDF로 저장]한 뒤 올려 주세요.")
+    if low.endswith(".hwpx"):
+        from . import hwpx_engine as E
+        try:
+            doc = E.load_doc(data)
+        except E.HwpxError as e:
+            raise ConvertError(str(e)) from e
+        lines = [x for x in doc.texts if x.strip()]
+        tables = E.doc_tables(doc)
+        if tables:
+            lines.append("[표]")
+            for t in tables:
+                for row in t["rows"]:
+                    lines.append(" | ".join(c["text"].replace("\n", " / ") for c in row))
+        text = "\n".join(lines).strip()
+    elif low.endswith((".odt", ".pdf")):
+        text = "\n".join(read_lines(filename, data)).strip()
+    elif low.endswith((".txt", ".csv", ".md")):
+        text = ""
+        for enc in ("utf-8-sig", "cp949", "utf-8"):
+            try:
+                text = data.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if not text:
+            text = data.decode("utf-8", "replace")
+        text = text.strip()
+    else:
+        raise ConvertError("참고 서류는 .hwpx · .pdf · .odt · .txt 파일만 지원합니다.")
+    if not text:
+        raise ConvertError("참고 서류에서 글자를 찾지 못했습니다.")
+    return text[:max_chars]
+
+
+IMAGE_MIMES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+MAX_VISION_BYTES = 10 * 1024 * 1024
+
+
+def extract_ref_item(filename: str, data: bytes, max_chars: int = 4000) -> dict:
+    """참고 서류를 텍스트 항목 또는 비전 미디어(사진·스캔 PDF) 항목으로 분류한다."""
+    low = (filename or "").lower()
+    ext = Path(low).suffix
+    if ext in IMAGE_MIMES:
+        if len(data) > MAX_VISION_BYTES:
+            raise ConvertError("사진 파일은 10MB 이하만 올릴 수 있습니다.")
+        return {"kind": "media", "name": filename, "mime": IMAGE_MIMES[ext], "data": data}
+    if low.endswith(".pdf"):
+        try:
+            text = "\n".join(pdf_lines(data)).strip()
+            if text:
+                return {"kind": "text", "name": filename, "text": text[:max_chars]}
+        except ConvertError as e:
+            if "스캔한 이미지 PDF" not in str(e):
+                raise
+        if len(data) > MAX_VISION_BYTES:
+            raise ConvertError("스캔 PDF는 10MB 이하만 올릴 수 있습니다.")
+        return {"kind": "media", "name": filename, "mime": "application/pdf", "data": data}
+    return {"kind": "text", "name": filename, "text": extract_ref_text(filename, data, max_chars)}

@@ -17,6 +17,8 @@ sys.path.insert(0, str(ROOT))
 class FakeGemini(BaseHTTPRequestHandler):
     """모델 목록과 generateContent를 흉내 낸다. 기록은 FakeGemini.calls에."""
     calls: list = []
+    last_prompt: str = ""
+    last_media_count: int = 0
     gone = {"gemini-2.5-flash", "gemini-9-gone"}   # 이 계정에서 못 쓰는 모델
     reject_schema = False                          # True면 responseJsonSchema가 있으면 400
 
@@ -41,6 +43,9 @@ class FakeGemini(BaseHTTPRequestHandler):
         model = self.path.split("/models/")[1].split(":")[0]
         has_schema = "responseJsonSchema" in body.get("generationConfig", {})
         FakeGemini.calls.append((model, has_schema))
+        parts = body.get("contents", [{}])[0].get("parts", [])
+        FakeGemini.last_prompt = "".join(p.get("text", "") for p in parts if "text" in p)
+        FakeGemini.last_media_count = sum(1 for p in parts if "inlineData" in p)
         if model in FakeGemini.gone:
             return self._send(404, {"error": {"message": f"models/{model} is not found"}})
         if has_schema and FakeGemini.reject_schema:

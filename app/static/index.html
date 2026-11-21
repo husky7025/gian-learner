@@ -73,7 +73,13 @@
             </summary>
             <div class="ai-body">
               <div id="aiExamples" class="chips"></div>
-              <textarea id="aiBrief" rows="3" placeholder="예) 11월 20일(금) 15시 과학실, 과학동아리 실험 재료(비커·시약) 구입. 금액 25만 원. 견적서 첨부."></textarea>
+              <textarea id="aiBrief" rows="3" placeholder="간단한 요청을 적거나, 아래에 공문·견적서·계획서를 올리면 서류를 읽고 기안을 써 드립니다."></textarea>
+              <div id="aiRefDrop" class="ai-refs">
+                <label class="btn small">📎 참고 서류 첨부<input id="aiRefInput" type="file" accept=".hwpx,.pdf,.odt,.txt,.csv,.md,.png,.jpg,.jpeg,.webp,.hwp,.ozd" multiple hidden></label>
+                <span class="muted small">공문·견적서·계획서 (.hwpx · .pdf · .odt · .txt, 최대 3개 · 끌어서 놓기 가능 · 저장 안 됨)</span>
+                <div id="aiVisionNote" class="muted small" style="width:100%">📷 (선택) 사진(.png·.jpg)·스캔 PDF 읽기는 <b>Gemini·Claude 비전 API</b>가 있는 선생님만 사용할 수 있습니다.</div>
+                <div id="aiRefList" class="chips"></div>
+              </div>
               <div class="ai-row">
                 <label class="small">기안일 <input id="aiDate" type="date"></label>
                 <button id="aiGo" class="primary">✨ AI로 작성하기</button>

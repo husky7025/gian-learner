@@ -131,6 +131,8 @@ async function loadTemplate() {
   $("#genResult").hidden = true;
   prevBeforeAI = null;
   $("#aiUndo").hidden = true;
+  aiRefs = [];
+  renderAIRefs();
   renderAIExamples(T.form.category);
   const n = $("#notice");
   if (T.template.similarity_warn) {
@@ -740,6 +742,28 @@ $("#updNow").addEventListener("click", async () => {
 let AIS = null;
 let prevBeforeAI = null;
 let aiAbort = null;
+let aiRefs = [];
+function renderAIRefs() {
+  const box = $("#aiRefList");
+  if (!box) return;
+  box.replaceChildren(...aiRefs.map((f, idx) => h("span", { class: "ref-chip", title: f.name },
+    "📎 " + f.name,
+    h("button", { type: "button", title: "빼기", onclick: () => { aiRefs.splice(idx, 1); renderAIRefs(); } }, "✕"))));
+}
+function addAIRefs(files) {
+  for (const f of files) {
+    if (aiRefs.length >= 3) { toast("참고 서류는 최대 3개까지 첨부할 수 있습니다.", true); break; }
+    if (!aiRefs.some((x) => x.name === f.name && x.size === f.size)) aiRefs.push(f);
+  }
+  renderAIRefs();
+}
+$("#aiRefInput").addEventListener("change", (e) => { addAIRefs([...e.target.files]); e.target.value = ""; });
+{
+  const rd = $("#aiRefDrop");
+  ["dragenter", "dragover"].forEach((ev) => rd.addEventListener(ev, (e) => { e.preventDefault(); rd.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((ev) => rd.addEventListener(ev, (e) => { e.preventDefault(); rd.classList.remove("over"); }));
+  rd.addEventListener("drop", (e) => addAIRefs([...e.dataTransfer.files]));
+}
 const AI_EXAMPLES = {
   gian: [
     { label: "행사 계획", text: "11월 25일(수) 14:00~16:00 시청각실, 1학년 진로 특강 운영 계획. 외부 강사 1명 초빙. 운영 계획서 1부 첨부." },
@@ -782,6 +806,13 @@ async function loadAI() {
   const savedOpen = localStorage.getItem("gian-ai-open");
   const aiReady = AIS.provider === "ollama" || !!(AIS.keys[AIS.provider] && AIS.keys[AIS.provider].set);
   $("#aiDetails").open = savedOpen !== null ? savedOpen === "1" : aiReady;
+  const vn = $("#aiVisionNote");
+  if (vn) {
+    const canVision = (AIS.provider === "gemini" || AIS.provider === "claude") && !!(AIS.keys[AIS.provider] && AIS.keys[AIS.provider].set);
+    vn.textContent = canVision
+      ? "📷 (선택) 사진(.png·.jpg)·스캔 PDF도 읽을 수 있습니다 (Gemini/Claude 비전 API 연결됨 · 사진 속 개인정보는 자동 가리기 불가)."
+      : "📷 (선택) 사진(.png·.jpg)·스캔 PDF 읽기는 Gemini 또는 Claude 비전 API가 있는 선생님만 사용할 수 있습니다.";
+  }
   const sel = $("#aiProvider");
   const keep = AIS.providers.some((x) => x.id === sel.value) ? sel.value : AIS.provider;  // 키 저장 등으로 다시 불러와도 고르던 AI 유지
   sel.replaceChildren(...AIS.providers.map((x) => h("option", { value: x.id, selected: x.id === keep }, x.label)));
@@ -870,7 +901,7 @@ $("#aiKeyDel").addEventListener("click", () => {
 });
 async function aiDraft() {
   const brief = $("#aiBrief").value.trim();
-  if (!brief) return toast("무엇을 기안할지 간단히 적어 주세요.", true);
+  if (!brief && !aiRefs.length) return toast("작성할 내용을 적거나 참고 서류를 첨부해 주세요.", true);
   const sig = (st) => JSON.stringify([st.fields, (st.outline || []).map((x) => [x.label || "", x.value || ""]), st.attach, st.cells || {}]);
   const hasContent = sig(S) !== sig(freshState());  // 학습된 처음 상태에서 직접 고친 내용이 있을 때만 묻기
   if (hasContent && !confirm("AI가 쓴 내용으로 지금 작성 칸을 바꿀까요? (바꾼 뒤에도 「AI 전으로 되돌리기」로 복구할 수 있습니다)")) return;
@@ -878,22 +909,33 @@ async function aiDraft() {
   btn.disabled = true; cancelBtn.hidden = false;
   aiAbort = new AbortController();
   const slow = AIS && AIS.provider === "ollama" ? " · 로컬 AI는 1~3분 걸릴 수 있어요" : "";
+  const refNote = aiRefs.length ? ` · 참고 서류 ${aiRefs.length}개 읽는 중` : "";
   const started = Date.now();
   const showWait = () => {
     const sec = Math.floor((Date.now() - started) / 1000);
-    $("#aiState").textContent = `✍ AI가 기안을 쓰는 중… (${sec}초${slow})`;
+    $("#aiState").textContent = `✍ AI가 기안을 쓰는 중… (${sec}초${refNote}${slow})`;
   };
   showWait();
   const timer = setInterval(showWait, 1000);
   const before = clone(S);
   try {
     let r;
-    const req = () => getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null }, signal: aiAbort.signal });
+    const req = () => {
+      if (aiRefs.length) {
+        const fd = new FormData();
+        fd.append("brief", brief);
+        if ($("#aiDate").value) fd.append("date", $("#aiDate").value);
+        for (const f of aiRefs) fd.append("files", f);
+        return getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", body: fd, signal: aiAbort.signal });
+      }
+      return getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null }, signal: aiAbort.signal });
+    };
     try { r = await req(); }
     catch (e) {
       if (e.message !== "CONSENT_REQUIRED") throw e;
       const name = CLOUD_NAME[AIS.provider] || AIS.provider;
-      if (!confirm(`${name} AI를 처음 사용합니다.\n\n· 적은 내용과 샘플 기안 글이 ${name} 서버로 보내집니다.\n· 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다.\n· 사용 요금은 내 API 계정에 청구됩니다.\n${AIS.provider === "gemini" ? "· ⚠ 무료 키(결제 미연결)로 보낸 내용은 Google이 제품 개선에 쓸 수 있습니다. 민감한 내용은 보내지 마세요.\n" : ""}\n계속할까요?`)) { $("#aiState").textContent = ""; return; }
+      const extraRef = aiRefs.length ? "· 첨부한 참고 서류 글자도 같은 방식으로 개인정보를 가려 보냅니다.\n" : "";
+      if (!confirm(`${name} AI를 처음 사용합니다.\n\n· 적은 내용과 샘플 기안 글이 ${name} 서버로 보내집니다.\n${extraRef}· 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다.\n· 사용 요금은 내 API 계정에 청구됩니다.\n${AIS.provider === "gemini" ? "· ⚠ 무료 키(결제 미연결)로 보낸 내용은 Google이 제품 개선에 쓸 수 있습니다. 민감한 내용은 보내지 마세요.\n" : ""}\n계속할까요?`)) { $("#aiState").textContent = ""; return; }
       await api("/api/ai", { method: "PUT", json: { consent: { [AIS.provider]: true } } });
       r = await req();
     }
@@ -903,8 +945,9 @@ async function aiDraft() {
     S = { filename: r.filename || "", fields: { ...base.fields, ...r.fields }, outline: r.outline.length ? r.outline : base.outline,
           attach: r.attach, cells: { ...r.cells } };
     saveDraft(); renderWrite(); refreshPreview();
+    const refDone = r.ref_count ? ` (참고 서류 ${r.ref_count}건 반영)` : "";
     $("#aiState").textContent = (r.switched_from ? `ℹ 「${r.switched_from}」 모델은 더 이상 쓸 수 없어 「${r.model}」(으)로 바꿨습니다(설정에도 저장). ` : "") +
-      `✔ ${r.model}이(가) 작성했습니다. 오른쪽 미리보기를 확인하고, 고칠 곳은 고친 뒤 📄 HWPX 만들기를 누르세요.`;
+      `✔ ${r.model}이(가) 작성했습니다${refDone}. 오른쪽 미리보기를 확인하고, 고칠 곳은 고친 뒤 📄 HWPX 만들기를 누르세요.`;
     if (r.switched_from) loadAI();
     $("#generate").scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (e) {
