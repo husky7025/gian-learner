@@ -59,6 +59,8 @@ code { background: var(--parchment); padding: 1px 6px; border-radius: var(--r-xs
 #sidebar { width: 264px; flex-shrink: 0; background: var(--parchment); color: var(--ink); display: flex; flex-direction: column;
   padding: 22px 14px 16px; border-right: 1px solid var(--hair); }
 .brand { font-family: var(--display); font-size: 21px; font-weight: 600; letter-spacing: -0.3px; margin: 0 6px 20px; color: var(--ink); }
+.brand-row { display: flex; align-items: center; gap: 9px; }
+.brand-icon { width: 28px; height: 28px; border-radius: 6px; flex-shrink: 0; display: block; }
 .brand small { display: block; font-family: var(--sans); font-size: 12px; font-weight: 400; letter-spacing: -0.12px; color: var(--muted); margin-top: 4px; }
 .side-title { font-size: 12px; font-weight: 600; color: var(--muted); margin: 6px 8px 8px; letter-spacing: -0.12px; }
 #formList { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }

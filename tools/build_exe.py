@@ -33,6 +33,7 @@ def main():
         str(ROOT / "run.py"),
         "--noconfirm", "--clean", "--onedir", "--windowed",
         "--name", APP_NAME,
+        "--icon", str(ROOT / "app" / "static" / "icon.ico"),
         "--distpath", str(work / "dist"),
         "--workpath", str(work / "work"),
         "--specpath", str(work),

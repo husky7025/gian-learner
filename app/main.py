@@ -662,6 +662,11 @@ def shutdown():
     return {"ok": True}
 
 
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse(STATIC / "icon.ico", media_type="image/x-icon")
+
+
 @app.get("/help")
 def help_page():
     return FileResponse(STATIC / "help.html")

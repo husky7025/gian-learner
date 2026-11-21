@@ -92,18 +92,38 @@ def start_server_thread() -> tuple[threading.Thread, dict]:
     return t, holder
 
 
+def _icon_path() -> str | None:
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    p = base / "app" / "static" / "icon.ico"
+    return str(p) if p.is_file() else None
+
+
+def _set_app_user_model_id() -> None:
+    """Windows 작업표시줄에서 pythonw 기본 아이콘 대신 앱 고유 아이콘이 표시되도록 AppUserModelID 지정."""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes  # noqa: PLC0415
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("GianLearner.AdminAI")
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def open_desktop_window(server_ready=None) -> bool:
     """pywebview 데스크톱 창으로 연다. 실패하면 False(브라우저 폴백).
     server_ready가 있으면 창에 「불러오는 중」을 먼저 보여 주고, 준비되면 앱 화면으로 바꾼다."""
     try:
         import webview  # noqa: PLC0415
 
+        _set_app_user_model_id()
+        ico = _icon_path()
         webview.settings["ALLOW_DOWNLOADS"] = True
         webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
         kw = {"width": 1280, "height": 840, "min_size": (900, 620), "background_color": "#FFFFFF"}
         if server_ready is None:
             webview.create_window("행정업무 AI", URL, **kw)
-            webview.start(gui="edgechromium")
+            webview.start(gui="edgechromium", icon=ico)
             return True
         win = webview.create_window("행정업무 AI", html=LOADING_HTML, **kw)
 
@@ -115,7 +135,7 @@ def open_desktop_window(server_ready=None) -> bool:
                 import html  # noqa: PLC0415
                 win.load_html(FAIL_HTML.replace("{detail}", html.escape(detail or "서버가 응답하지 않습니다.")))
 
-        webview.start(switch, gui="edgechromium")
+        webview.start(switch, gui="edgechromium", icon=ico)
         return True
     except Exception as e:  # noqa: BLE001
         print(f"데스크톱 창을 열지 못해 브라우저로 전환합니다: {e}")
