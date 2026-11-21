@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import ctypes
+import hashlib
 import json
 import os
 import re
@@ -98,7 +99,7 @@ def _load() -> dict:
 
 
 def _save(cfg: dict) -> None:
-    AI_FILE.write_text(json.dumps(cfg, ensure_ascii=False), "utf-8")
+    S.atomic_write_text(AI_FILE, json.dumps(cfg, ensure_ascii=False))
 
 
 def _key(cfg: dict, provider: str) -> str:
@@ -202,7 +203,21 @@ def kor_money(n: int) -> str:
     return s
 
 
-def fix_text(text: str, ref_year: int) -> str:
+def _md_year(ref: date, month: int, day: int) -> int:
+    """연도 없이 쓴 「월. 일.」을 기준일과 가장 가까운 해로 본다 (12월에 쓰는 1월 행사 → 다음 해)."""
+    best, best_gap = ref.year, None
+    for y in (ref.year - 1, ref.year, ref.year + 1):
+        try:
+            gap = abs((date(y, month, day) - ref).days)
+        except ValueError:
+            continue
+        if best_gap is None or gap < best_gap:
+            best, best_gap = y, gap
+    return best
+
+
+def fix_text(text: str, ref: date | int) -> str:
+    """ref: 기안 기준일(date). 연도(int)만 주면 그 해 기준으로 계산한다."""
     def full(m):
         try:
             wd = WEEK[date(int(m.group(1)), int(m.group(2)), int(m.group(3))).weekday()]
@@ -211,8 +226,10 @@ def fix_text(text: str, ref_year: int) -> str:
             return m.group(0)
 
     def md(m):
+        mo, dy = int(m.group(1)), int(m.group(2))
+        year = ref if isinstance(ref, int) else _md_year(ref, mo, dy)
         try:
-            wd = WEEK[date(ref_year, int(m.group(1)), int(m.group(2))).weekday()]
+            wd = WEEK[date(year, mo, dy).weekday()]
             return f"{int(m.group(1))}. {int(m.group(2))}.({wd})"
         except ValueError:
             return m.group(0)
@@ -299,20 +316,35 @@ def describe_template(tpl: dict, cloud: bool = False) -> dict:
     return out
 
 
+_TEXT_CACHE: dict[tuple[str, bool], str] = {}
+
+
 def sample_texts(sample_bytes: list[bytes], cloud: bool) -> list[str]:
+    """샘플 글(표 포함). 같은 파일은 다시 해석하지 않도록 내용 해시로 기억해 둔다."""
     res = []
     for b in sample_bytes[-MAX_SAMPLES:]:
-        doc = E.load_doc(b)
-        lines = list(doc.texts)
-        tables = E.doc_tables(doc)
-        if tables:
-            lines.append("[표]")
-            for t in tables:
-                for row in t["rows"]:
-                    lines.append(" | ".join(c["text"].replace("\n", " / ") for c in row))
-        text = "\n".join(lines)[:MAX_SAMPLE_CHARS]
-        res.append(redact(text) if cloud else text)
+        key = (hashlib.sha256(b).hexdigest(), cloud)
+        hit = _TEXT_CACHE.get(key)
+        if hit is None:
+            hit = _sample_text(b, cloud)
+            if len(_TEXT_CACHE) >= 64:
+                _TEXT_CACHE.pop(next(iter(_TEXT_CACHE)))
+            _TEXT_CACHE[key] = hit
+        res.append(hit)
     return res
+
+
+def _sample_text(b: bytes, cloud: bool) -> str:
+    doc = E.load_doc(b, full=False)
+    lines = list(doc.texts)
+    tables = E.doc_tables(doc)
+    if tables:
+        lines.append("[표]")
+        for t in tables:
+            for row in t["rows"]:
+                lines.append(" | ".join(c["text"].replace("\n", " / ") for c in row))
+    text = "\n".join(lines)[:MAX_SAMPLE_CHARS]
+    return redact(text) if cloud else text
 
 
 def build_prompt(tpl: dict, samples: list[str], brief: str, ref: date, cloud: bool = False,
@@ -349,7 +381,7 @@ def _http_json(url: str, payload: dict | None, headers: dict, timeout: int) -> d
                                  method="POST" if data is not None else "GET")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 (정해진 주소만)
-            return json.loads(r.read().decode("utf-8"))
+            raw = r.read()
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")[:500]
         if e.code in (401, 403):
@@ -365,6 +397,10 @@ def _http_json(url: str, payload: dict | None, headers: dict, timeout: int) -> d
         raise AIError("AI 서버에 연결할 수 없습니다. 인터넷 연결(로컬 AI는 Ollama 실행 여부)을 확인해 주세요.") from e
     except TimeoutError as e:
         raise AIError("AI 응답이 너무 오래 걸립니다. 잠시 뒤 다시 시도해 주세요.") from e
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except ValueError as e:
+        raise AIError("AI 서버가 알 수 없는 형식으로 답했습니다. 잠시 뒤 다시 시도해 주세요.") from e
 
 
 def _claude_client(key: str):
@@ -429,18 +465,21 @@ def _call_openai(key: str, model: str, prompt: str, schema: dict) -> str:
 
 def _call_gemini(key: str, model: str, prompt: str, schema: dict, media: list[dict] | None = None) -> str:
     url, hdr = f"{GEMINI_URL}/models/{model}:generateContent", {"x-goog-api-key": key}
-    text = prompt + "\n\n[답 형식(JSON 스키마)]\n" + json.dumps(schema, ensure_ascii=False)
-    parts: list[dict] = [{"text": text}]
-    for m in media or []:
-        parts.append({"inlineData": {"mimeType": m["mime"], "data": base64.b64encode(m["data"]).decode("ascii")}})
-    base = {"systemInstruction": {"parts": [{"text": SYSTEM}]}, "contents": [{"role": "user", "parts": parts}]}
+    media_parts = [{"inlineData": {"mimeType": m["mime"], "data": base64.b64encode(m["data"]).decode("ascii")}}
+                   for m in media or []]
+
+    def body(text: str, gen: dict) -> dict:
+        return {"systemInstruction": {"parts": [{"text": SYSTEM}]},
+                "contents": [{"role": "user", "parts": [{"text": text}, *media_parts]}],
+                "generationConfig": gen}
     gen = {"responseMimeType": "application/json", "temperature": 0.3}
-    try:  # 형식 강제(responseJsonSchema) — 모델이 받아들이지 않으면(400) 예전 방식(형식 안내만)으로 한 번 더
-        data = _http_json(url, {**base, "generationConfig": {**gen, "responseJsonSchema": schema}}, hdr, 180)
+    try:  # 형식 강제(responseJsonSchema) — 모델이 받아들이지 않으면(400) 글로 형식을 안내하는 예전 방식으로 한 번 더
+        data = _http_json(url, body(prompt, {**gen, "responseJsonSchema": schema}), hdr, 180)
     except AIError as e:
         if "(400)" not in str(e):
             raise
-        data = _http_json(url, {**base, "generationConfig": gen}, hdr, 180)
+        text = prompt + "\n\n[답 형식(JSON 스키마)]\n" + json.dumps(schema, ensure_ascii=False)
+        data = _http_json(url, body(text, gen), hdr, 180)
     cands = data.get("candidates") or []
     if not cands:
         raise AIError("Gemini가 답을 주지 않았습니다(안전 정책으로 막혔을 수 있습니다).")
@@ -511,7 +550,7 @@ def _parse_json(text: str) -> dict:
 
 
 def clean_result(raw: dict, tpl: dict, ref: date) -> dict:
-    fx = lambda s: fix_text(str(s or "").strip(), ref.year)  # noqa: E731
+    fx = lambda s: fix_text(str(s or "").strip(), ref)  # noqa: E731
     field_ids = {b["id"] for b in tpl["blocks"] if b["type"] == "field"}
     cell_keys = {c["key"] for t in tpl.get("tables", []) for r in t["rows"] for c in r if c["type"] == "field"}
     fields = {k: fx(v) for k, v in (raw.get("fields") or {}).items() if k in field_ids}
@@ -563,9 +602,7 @@ def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date,
     key = _key(cfg, provider)
     if PROVIDERS[provider]["needs_key"] and not key:
         raise AIError(f"{PROVIDERS[provider]['label']} API 키가 없습니다. ⚙ 설정 → AI 작성 설정에서 키를 넣어 주세요.")
-    switched = None
-    if model in RETIRED_MODELS.get(provider, set()):  # 지원 끝난 모델이면 기본 모델로
-        switched, model = model, PROVIDERS[provider]["default_model"]
+    switched = None  # (지원 끝난 모델은 _load()에서 이미 빠져 기본 모델이 쓰인다)
     schema = build_schema(tpl)
     if media:
         names = ", ".join(m["name"] for m in media)

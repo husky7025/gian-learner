@@ -1,6 +1,7 @@
-"""행정업무 비서 — 이 PC 안에서만(127.0.0.1) 동작하는 로컬 웹 서버."""
+"""행정업무 AI — 이 PC 안에서만(127.0.0.1) 동작하는 로컬 웹 서버."""
 from __future__ import annotations
 
+import asyncio
 import copy
 import json
 import os
@@ -8,13 +9,14 @@ import re
 import subprocess
 import sys
 import threading
+from datetime import date as _date
 from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from . import ai as AI
 from . import convert as C
@@ -32,7 +34,7 @@ RESOURCES = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent
 DEFAULT_PACK = RESOURCES / "packs" / "기본양식.gianpack"
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 
-app = FastAPI(title="행정업무 비서", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="행정업무 AI", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
 S.init()
 
 
@@ -211,10 +213,15 @@ def template(form_id: int):
 @app.post("/api/forms/{form_id}/samples")
 async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
     f = _form_or_404(form_id)
+    items = [(Path(up.filename or "sample.hwpx").name, await up.read(MAX_UPLOAD + 1)) for up in files]
+    # 변환·분석·학습은 오래 걸릴 수 있으므로 별도 스레드에서 (그동안 다른 요청이 멈추지 않게)
+    return await asyncio.to_thread(_save_uploads, f, items)
+
+
+def _save_uploads(f: dict, items: list[tuple[str, bytes]]) -> dict:
+    form_id = f["id"]
     added, errors, notes, warns = [], [], [], []
-    for up in files:
-        name = Path(up.filename or "sample.hwpx").name
-        data = await up.read(MAX_UPLOAD + 1)
+    for name, data in items:
         if len(data) > MAX_UPLOAD:
             errors.append(f"{name}: 20MB를 넘는 파일은 올릴 수 없습니다.")
             continue
@@ -237,8 +244,8 @@ async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
             name = f"{Path(name).stem} ({kind}에서 변환).hwpx"
             notes.append(name)
         try:
-            E.learn([data], ["check"])  # 분석 가능한지 미리 확인
-        except (E.HwpxError, Exception) as e:  # noqa: BLE001
+            E.check(data)  # 분석 가능한지 미리 확인 (전체 학습은 아래에서 한 번만)
+        except Exception as e:  # noqa: BLE001
             msg = str(e) if isinstance(e, E.HwpxError) else "문서를 읽을 수 없습니다."
             errors.append(f"{name}: {msg}")
             continue
@@ -252,7 +259,7 @@ async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
 @app.delete("/api/forms/{form_id}/samples/{sample_id}")
 def delete_sample(form_id: int, sample_id: int):
     f = _form_or_404(form_id)
-    S.backup(f"샘플삭제-{f['name']}")
+    S.backup(f"샘플삭제-{f['name']}", routine=True)
     S.delete_sample(form_id, sample_id)
     ov = f["overrides"]
     if ov.get("base_sample_id") == sample_id:
@@ -304,7 +311,7 @@ def move_sample(form_id: int, sample_id: int, body: MoveSampleIn):
         raise HTTPException(400, "같은 양식입니다.")
     if not any(s["id"] == sample_id for s in S.list_samples(form_id)):
         raise HTTPException(404, "샘플이 없습니다.")
-    S.backup(f"샘플옮기기-{f['name']}")
+    S.backup(f"샘플옮기기-{f['name']}", routine=True)
     S.move_sample(form_id, sample_id, body.to_form)
     ov = f["overrides"]
     if ov.get("base_sample_id") == sample_id:
@@ -346,7 +353,7 @@ def preview(form_id: int, body: GenerateIn):
     tpl, samples = _learn(f)
     if not tpl.get("ready"):
         raise HTTPException(400, "먼저 샘플을 올려 학습시켜 주세요.")
-    return {"lines": E.preview_text(tpl, body.model_dump(), _base_bytes(tpl, samples))}
+    return {"lines": E.preview_text(tpl, body.model_dump())}
 
 
 @app.post("/api/forms/{form_id}/generate")
@@ -483,11 +490,15 @@ def pack_export(body: PackIn):
 @app.post("/api/packs/import")
 async def pack_import(file: UploadFile = File(...)):
     data = await file.read(P.MAX_PACK + 1)
+    return await asyncio.to_thread(_import_pack_bytes, data, "꾸러미가져오기전")
+
+
+def _import_pack_bytes(data: bytes, reason: str) -> dict:
     try:
         forms = P.read_pack(data, S.CATEGORIES)
     except P.PackError as e:
         raise HTTPException(400, str(e)) from e
-    S.backup("꾸러미가져오기전")
+    S.backup(reason)
     return {"imported": S.import_forms(forms)}
 
 
@@ -500,12 +511,7 @@ def pack_default_info():
 def pack_import_default():
     if not DEFAULT_PACK.exists():
         raise HTTPException(404, "기본 양식 꾸러미가 없습니다.")
-    try:
-        forms = P.read_pack(DEFAULT_PACK.read_bytes(), S.CATEGORIES)
-    except P.PackError as e:
-        raise HTTPException(400, str(e)) from e
-    S.backup("기본꾸러미가져오기전")
-    return {"imported": S.import_forms(forms)}
+    return _import_pack_bytes(DEFAULT_PACK.read_bytes(), "기본꾸러미가져오기전")
 
 
 class AISettingsIn(BaseModel):
@@ -546,15 +552,9 @@ def ai_models(provider: str):
 
 @app.post("/api/forms/{form_id}/ai-draft")
 async def ai_draft(form_id: int, request: Request):
-    import asyncio
-    from datetime import date as _date
     f = _form_or_404(form_id)
-    tpl, samples = _learn(f)
-    if not tpl.get("ready"):
-        raise HTTPException(400, "먼저 샘플을 올려 양식을 학습시켜 주세요.")
     ct = (request.headers.get("content-type") or "").lower()
-    refs: list[tuple[str, str]] = []
-    media: list[dict] = []
+    files: list[tuple[str, bytes]] = []
     if "multipart/form-data" in ct:
         form_data = await request.form()
         brief = str(form_data.get("brief") or "")
@@ -567,32 +567,47 @@ async def ai_draft(form_id: int, request: Request):
             data = await up.read(MAX_UPLOAD + 1)
             if len(data) > MAX_UPLOAD:
                 raise HTTPException(400, f"{name}: 20MB를 넘는 파일은 올릴 수 없습니다.")
-            try:
-                item = C.extract_ref_item(name, data)
-            except C.ConvertError as e:
-                raise HTTPException(400, f"{name}: {e}") from e
-            if item["kind"] == "media":
-                media.append(item)
-            else:
-                refs.append((name, item["text"]))
+            files.append((name, data))
     else:
         try:
             raw = await request.json()
         except Exception as e:  # noqa: BLE001
             raise HTTPException(400, "잘못된 요청 형식입니다.") from e
-        body = DraftIn(**(raw if isinstance(raw, dict) else {}))
+        try:
+            body = DraftIn(**(raw if isinstance(raw, dict) else {}))
+        except ValidationError as e:
+            raise HTTPException(400, "작성할 내용(brief)이 없거나 형식이 잘못되었습니다.") from e
         brief, date_str = body.brief, body.date
     try:
         ref = _date.fromisoformat(date_str) if date_str else _date.today()
     except ValueError:
         ref = _date.today()
+    # 학습·참고 서류 읽기·AI 호출은 모두 오래 걸릴 수 있으므로 별도 스레드에서
+    return await asyncio.to_thread(_ai_draft_work, f, brief, ref, files)
+
+
+def _ai_draft_work(f: dict, brief: str, ref: _date, files: list[tuple[str, bytes]]) -> dict:
+    tpl, samples = _learn(f)
+    if not tpl.get("ready"):
+        raise HTTPException(400, "먼저 샘플을 올려 양식을 학습시켜 주세요.")
+    refs: list[tuple[str, str]] = []
+    media: list[dict] = []
+    for name, data in files:
+        try:
+            item = C.extract_ref_item(name, data)
+        except C.ConvertError as e:
+            raise HTTPException(400, f"{name}: {e}") from e
+        if item["kind"] == "media":
+            media.append(item)
+        else:
+            refs.append((name, item["text"]))
     try:
-        res = await asyncio.to_thread(AI.draft, tpl, [S.sample_bytes(s) for s in samples], brief, ref, refs, media)
-        return {**res, "ref_count": len(refs) + len(media), "vision_count": len(media)}
+        res = AI.draft(tpl, [S.sample_bytes(s) for s in samples], brief, ref, refs, media)
     except AI.AIError as e:
         if str(e) == "CONSENT_REQUIRED":
             raise HTTPException(409, "CONSENT_REQUIRED") from e
         raise HTTPException(400, str(e)) from e
+    return {**res, "ref_count": len(refs) + len(media), "vision_count": len(media)}
 
 
 class SettingsIn(BaseModel):

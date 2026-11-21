@@ -34,6 +34,16 @@ def test_kor_money():
     assert AI.kor_money(10 ** 20) == str(10 ** 20)  # 아주 큰 수도 멈추지 않음
 
 
+def test_weekday_fix_crosses_year():
+    # 12월에 쓰는 1월 행사: 2027. 1. 5.는 화요일 — 올해(2026) 기준 「월」로 잘못 바꾸면 안 된다
+    assert AI.fix_text("1. 5.(월)", date(2026, 12, 20)) == "1. 5.(화)"
+    # 1월에 쓰는 지난 12월 결과 보고: 2025. 12. 30.는 화요일
+    assert AI.fix_text("12. 30.(목)", date(2026, 1, 3)) == "12. 30.(화)"
+    # 같은 해 날짜와 연도를 준 경우는 그대로 계산
+    assert AI.fix_text("11. 20.(월)", date(2026, 11, 21)) == "11. 20.(금)"
+    assert AI.fix_text("2027. 1. 5.(월)", date(2026, 12, 20)) == "2027. 1. 5.(화)"
+
+
 def test_redact_hides_contacts_and_names():
     out = AI.redact("담당자 : 교사 홍길동, 010-1234-5678, a@b.kr")
     assert "010-1234-5678" not in out and "a@b.kr" not in out and "홍길동" not in out
@@ -233,3 +243,45 @@ def test_ai_draft_vision_image_gemini_ok_and_ollama_blocked(client, fake_gemini)
         assert "Gemini 또는 Claude" in r2.json()["detail"]
     finally:
         _gemini("gemini-3.6-flash")
+
+
+# ---- review fixes (2026-11-21) ----
+
+def test_ai_draft_json_without_brief_is_400_not_500(client):
+    f = forms_by_cat(client)["pumui"]
+    r = client.post(f"/api/forms/{f['id']}/ai-draft", json={"date": "2026-11-21"})
+    assert r.status_code == 400, r.text
+
+
+def test_routine_backups_do_not_push_out_important_ones():
+    important = S.backup("important-keep")
+    for _ in range(S.MAX_ROUTINE_BACKUPS + 3):
+        S.backup("routine", routine=True)
+    names = [b["name"] for b in S.list_backups()]
+    assert important in names
+    kinds = [S._backup_info(S.BACKUPS / n).get("kind") for n in names]
+    assert kinds.count("routine") == S.MAX_ROUTINE_BACKUPS
+
+
+def test_db_helper_closes_connection():
+    import sqlite3
+    with S.db() as con:
+        con.execute("SELECT 1")
+    with pytest.raises(sqlite3.ProgrammingError):
+        con.execute("SELECT 1")
+
+
+def test_preview_uses_learned_lines_without_file(client):
+    f = forms_by_cat(client)["gian"]
+    tpl = client.get(f"/api/forms/{f['id']}/template").json()["template"]
+    lines = E.preview_text(tpl, {})
+    assert lines and any(x.strip() for x in lines)
+
+
+def test_light_load_skips_other_files(client):
+    f = forms_by_cat(client)["gian"]
+    s = S.list_samples(f["id"])[0]
+    data = S.sample_bytes(s)
+    light = E.load_doc(data, full=False)
+    assert set(light.files) <= set(E.LIGHT_FILES)
+    assert light.texts == E.load_doc(data).texts

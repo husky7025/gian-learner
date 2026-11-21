@@ -18,8 +18,7 @@ import io
 import re
 import zipfile
 from collections import Counter
-from dataclasses import dataclass, field
-from pathlib import Path
+from dataclasses import dataclass
 
 from lxml import etree
 
@@ -103,7 +102,12 @@ class Doc:
     objs: list[bool]
 
 
-def load_doc(data: bytes) -> Doc:
+LIGHT_FILES = (SECTION, "Contents/content.hpf")
+
+
+def load_doc(data: bytes, full: bool = True) -> Doc:
+    """full=False면 본문(section0)과 문서 정보(content.hpf)만 푼다 — 학습·미리보기·비교용.
+    그림(BinData) 등까지 다시 묶어야 하는 생성(generate)에서만 full=True."""
     try:
         z = zipfile.ZipFile(io.BytesIO(data))
     except zipfile.BadZipFile as e:
@@ -113,7 +117,7 @@ def load_doc(data: bytes) -> Doc:
         raise HwpxError("한글 문서 본문(Contents/section0.xml)을 찾을 수 없습니다.")
     if sum(i.file_size for i in z.infolist()) > MAX_UNZIPPED:
         raise HwpxError("파일이 너무 큽니다.")
-    files = {n: z.read(n) for n in names}
+    files = {n: z.read(n) for n in names if full or n in LIGHT_FILES}
     parser = etree.XMLParser(resolve_entities=False, no_network=True, huge_tree=False)
     root = etree.fromstring(files[SECTION], parser)
     paras = root.findall(HP + "p")
@@ -341,11 +345,16 @@ def _jaccard(a: set, b: set) -> float:
     return len(a & b) / max(1, len(a | b))
 
 
+def check(data: bytes) -> None:
+    """올린 샘플을 분석할 수 있는지만 빠르게 확인한다 (전체 학습 없이)."""
+    analyze(load_doc(data, full=False))
+
+
 def signature(data: bytes) -> set:
     """문서 모양을 비교하기 위한 표식: 개요 항목 제목 + 머리·꼬리 줄 제목 + 표 머리글."""
-    doc = load_doc(data)
+    doc = load_doc(data, full=False)
     an = analyze(doc)
-    sig = {("o",) + k for k in _labelset(an)}
+    sig ={("o",) + k for k in _labelset(an)}
     for region in ("header", "footer"):
         for i in an[region]:
             m = HEAD_LABEL_RE.match(doc.texts[i] or "")
@@ -444,7 +453,7 @@ def learn(sample_bytes: list[bytes], sample_ids: list, overrides: dict | None = 
     overrides = overrides or {}
     if not sample_bytes:
         return {"ready": False}
-    docs = [load_doc(b) for b in sample_bytes]
+    docs = [load_doc(b, full=False) for b in sample_bytes]
     ans = [analyze(d) for d in docs]
 
     # 기준 샘플: 다른 샘플과 항목 구성이 가장 비슷한 것
@@ -458,9 +467,9 @@ def learn(sample_bytes: list[bytes], sample_ids: list, overrides: dict | None = 
     others = [(docs[i], ans[i]) for i in range(len(docs)) if i != bi]
     line_ov = overrides.get("lines", {})
 
-    similarity = 1.0
+    sim = 1.0
     if others:
-        similarity = sum(_jaccard(sets[bi], sets[i]) for i in range(len(docs)) if i != bi) / len(others)
+        sim = sum(_jaccard(sets[bi], sets[i]) for i in range(len(docs)) if i != bi) / len(others)
 
     # 단계별 번호 모양(들여쓰기·번호 뒤 간격·제목 뒤 구분자) 학습
     styles = {}
@@ -544,8 +553,8 @@ def learn(sample_bytes: list[bytes], sample_ids: list, overrides: dict | None = 
         "ready": True,
         "base_sample_id": sample_ids[bi],
         "sample_count": len(docs),
-        "similarity": round(similarity, 2),
-        "similarity_warn": bool(others) and similarity < 0.25,
+        "similarity": round(sim, 2),
+        "similarity_warn": bool(others) and sim < 0.25,
         "styles": {str(k): v for k, v in styles.items()},
         "default_sep": default_sep,
         "uses_end": any(a["uses_end"] for a in ans),
@@ -830,8 +839,11 @@ def validate(data: bytes) -> None:
         raise HwpxError("생성 파일 검사 실패: 구역 설정 없음")
 
 
-def preview_text(tpl: dict, data: dict, base_bytes: bytes) -> list[str]:
-    doc = load_doc(base_bytes)
+def preview_text(tpl: dict, data: dict, base_bytes: bytes | None = None) -> list[str]:
+    """미리보기 글. 학습 결과의 base_lines(기준 샘플 문단 글자)를 쓰므로 파일을 다시 풀지 않는다."""
+    texts = tpl.get("base_lines")
+    if texts is None:  # 예전 학습 결과 호환
+        texts = load_doc(base_bytes, full=False).texts
     cells_in = data.get("cells", {}) or {}
     by_src: dict[int, list] = {}
     for t in tpl.get("tables", []):
@@ -841,15 +853,11 @@ def preview_text(tpl: dict, data: dict, base_bytes: bytes) -> list[str]:
         if t is not None:
             out.append(t)
             continue
-        if s is not None and s < len(doc.texts) and s in by_src:
+        if s is not None and s < len(texts) and s in by_src:
             for tb in by_src[s]:
                 for row in tb["rows"]:
                     vals = [str(cells_in.get(c["key"], c["default"])) if c["type"] == "field" else c["text"] for c in row]
                     out.append("│ " + " │ ".join(v.replace(chr(10), " / ") for v in vals) + " │")
             continue
-        out.append(doc.texts[s] if s is not None and s < len(doc.texts) else "")
+        out.append(texts[s] if s is not None and s < len(texts) else "")
     return out
-
-
-def read_file(path: Path) -> bytes:
-    return Path(path).read_bytes()

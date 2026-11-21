@@ -184,7 +184,7 @@ def extract_ref_text(filename: str, data: bytes, max_chars: int = 4000) -> str:
     if low.endswith(".hwpx"):
         from . import hwpx_engine as E
         try:
-            doc = E.load_doc(data)
+            doc = E.load_doc(data, full=False)
         except E.HwpxError as e:
             raise ConvertError(str(e)) from e
         lines = [x for x in doc.texts if x.strip()]

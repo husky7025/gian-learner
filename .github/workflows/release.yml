@@ -48,7 +48,7 @@ jobs:
         shell: bash
         run: |
           export GIAN_DATA_DIR="$RUNNER_TEMP/gian-data"
-          "./dist/_build/dist/행정업무 비서/행정업무 비서.exe" --no-browser &
+          "./dist/_build/dist/행정업무 AI/행정업무 AI.exe" --no-browser &
           for i in $(seq 1 60); do curl -s -o /dev/null http://127.0.0.1:8765/api/forms && break; sleep 1; done
           curl -sf http://127.0.0.1:8765/api/info
           curl -sf -X POST http://127.0.0.1:8765/api/packs/import-default
@@ -69,5 +69,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "${GITHUB_REF_NAME}" dist/*.zip \
-            --title "행정업무 비서 ${GITHUB_REF_NAME}" \
+            --title "행정업무 AI ${GITHUB_REF_NAME}" \
             --notes-file docs/release-notes.md

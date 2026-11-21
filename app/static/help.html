@@ -3,46 +3,53 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>행정업무 비서 사용설명서</title>
+<title>행정업무 AI 사용설명서</title>
 <style>
-  :root { --primary: #2f6fed; --line: #e3e6eb; --muted: #6b7280; --soft: #f2f6ff; --warn: #fff4d6; --ok: #e8f5e9; }
+  /* 앱 화면과 같은 따뜻한 크림·코랄 디자인 */
+  :root { --primary: #cc785c; --primary-d: #a9583e; --ink: #141413; --body: #3d3d3a; --line: #e6dfd8; --muted: #6c6a64;
+    --bg: #faf9f5; --soft: #f5f0e8; --card: #efe9de; --dark: #181715; --dark-up: #252320; --on-dark: #faf9f5;
+    --warn: #fbf1df; --ok: #e9f3ea;
+    --serif: "Copernicus", "Tiempos Headline", Georgia, "함초롬바탕", "HCR Batang", "Noto Serif KR", "Nanum Myeongjo", "나눔명조", "Batang", "바탕", serif;
+    --sans: "Inter", "Pretendard", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: "Malgun Gothic", "맑은 고딕", system-ui, sans-serif; font-size: 17px; line-height: 1.85; color: #1f2430; background: #f6f7f9; }
-  header { position: sticky; top: 0; z-index: 5; background: #1f2633; color: #fff; padding: 12px 24px; display: flex; align-items: center; gap: 14px; }
-  header h1 { font-size: 20px; margin: 0; flex: 1; }
-  header a.back { background: var(--primary); color: #fff; text-decoration: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; }
-  .wrap { display: grid; grid-template-columns: 250px 1fr; gap: 24px; max-width: 1200px; margin: 0 auto; padding: 20px; }
-  nav.toc { position: sticky; top: 76px; align-self: start; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-size: 15px; }
-  nav.toc a { display: block; color: #1f2430; text-decoration: none; padding: 3px 6px; border-radius: 6px; }
-  nav.toc a:hover { background: var(--soft); color: var(--primary); }
-  main section { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 22px 28px; margin-bottom: 20px; scroll-margin-top: 80px; }
-  h2 { font-size: 23px; margin: 0 0 12px; color: var(--primary); }
-  h3 { font-size: 19px; margin: 20px 0 6px; }
+  body { margin: 0; font-family: var(--sans); font-size: 17px; line-height: 1.85; color: var(--body); background: var(--bg); }
+  header { position: sticky; top: 0; z-index: 5; background: var(--dark); color: var(--on-dark); padding: 14px 28px; display: flex; align-items: center; gap: 14px; }
+  header h1 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.5px; font-size: 24px; margin: 0; flex: 1; color: var(--on-dark); }
+  header a.back { background: var(--primary); color: #fff; text-decoration: none; padding: 9px 18px; border-radius: 8px; font-weight: 600; font-size: 15px; }
+  header a.back:hover { background: var(--primary-d); }
+  .wrap { display: grid; grid-template-columns: 250px 1fr; gap: 28px; max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
+  nav.toc { position: sticky; top: 84px; align-self: start; background: var(--soft); border-radius: 12px; padding: 14px 16px; font-size: 15px; }
+  nav.toc a { display: block; color: var(--ink); text-decoration: none; padding: 4px 8px; border-radius: 6px; }
+  nav.toc a:hover { background: var(--card); color: var(--primary-d); }
+  main section { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; scroll-margin-top: 90px; }
+  h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.5px; font-size: 30px; line-height: 1.2; margin: 0 0 14px; color: var(--ink); }
+  h3 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.3px; font-size: 21px; margin: 22px 0 6px; color: var(--ink); }
+  a { color: var(--primary-d); }
   ol.steps { counter-reset: s; list-style: none; padding: 0; }
-  ol.steps > li { counter-increment: s; position: relative; padding: 10px 12px 10px 56px; margin: 8px 0; background: #fafbfc; border-radius: 10px; border: 1px solid var(--line); }
-  ol.steps > li::before { content: counter(s); position: absolute; left: 12px; top: 10px; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; text-align: center; line-height: 32px; }
-  .btn { display: inline-block; background: #fff; border: 1px solid #c5cad3; border-radius: 6px; padding: 0 8px; font-size: 15px; white-space: nowrap; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 12px 14px 12px 58px; margin: 8px 0; background: var(--card); border-radius: 12px; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 14px; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; text-align: center; line-height: 32px; }
+  .btn { display: inline-block; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 15px; white-space: nowrap; color: var(--ink); }
   .btn.blue { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .tip, .warn, .ok { border-radius: 10px; padding: 10px 14px; margin: 10px 0; }
-  .tip { background: var(--soft); border-left: 5px solid var(--primary); }
-  .warn { background: var(--warn); border-left: 5px solid #e0a800; }
-  .ok { background: var(--ok); border-left: 5px solid #2e7d32; }
-  kbd { background: #eee; border: 1px solid #ccc; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; font-size: 14px; }
+  .tip, .warn, .ok { border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
+  .tip { background: var(--soft); border-left: 4px solid var(--primary); }
+  .warn { background: var(--warn); border-left: 4px solid #d4a017; }
+  .ok { background: var(--ok); border-left: 4px solid #3f8f55; }
+  kbd { background: var(--card); border: 1px solid #d8cfc0; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; font-size: 14px; }
   /* 화면 그림 */
-  .mock { display: grid; grid-template-columns: 170px 1fr; gap: 0; border: 2px solid #1f2633; border-radius: 10px; overflow: hidden; font-size: 14px; line-height: 1.5; margin: 12px 0; max-width: 760px; }
-  .mock .side { background: #1f2633; color: #e8ebf0; padding: 10px; }
-  .mock .main { padding: 10px; background: #f6f7f9; }
-  .mock .box { border: 2px dashed #9aa3b2; border-radius: 8px; padding: 6px 8px; margin: 5px 0; position: relative; background: #fff; color: #1f2430; }
-  .mock .side .box { background: #2b3446; color: #e8ebf0; }
-  .mock .num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: #e64a19; color: #fff; text-align: center; line-height: 24px; font-weight: 700; margin-right: 6px; font-size: 13px; }
+  .mock { display: grid; grid-template-columns: 170px 1fr; gap: 0; border: 2px solid var(--dark); border-radius: 12px; overflow: hidden; font-size: 14px; line-height: 1.5; margin: 12px 0; max-width: 760px; }
+  .mock .side { background: var(--dark); color: #e9e5dc; padding: 10px; }
+  .mock .main { padding: 10px; background: var(--bg); }
+  .mock .box { border: 2px dashed #c9bfae; border-radius: 8px; padding: 6px 8px; margin: 5px 0; position: relative; background: var(--card); color: var(--ink); }
+  .mock .side .box { background: var(--dark-up); color: #e9e5dc; border-color: #4a4640; }
+  .mock .num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: #fff; text-align: center; line-height: 24px; font-weight: 700; margin-right: 6px; font-size: 13px; }
   .mock .row { display: flex; gap: 8px; }
   .mock .row .box { flex: 1; }
   table.terms { border-collapse: collapse; width: 100%; }
   table.terms td { border-bottom: 1px solid var(--line); padding: 8px; vertical-align: top; }
-  table.terms td:first-child { font-weight: 700; white-space: nowrap; width: 150px; }
-  details { border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; margin: 8px 0; background: #fafbfc; }
-  details summary { cursor: pointer; font-weight: 700; }
-  details[open] summary { margin-bottom: 6px; color: var(--primary); }
+  table.terms td:first-child { font-weight: 700; white-space: nowrap; width: 150px; color: var(--ink); }
+  details { border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; margin: 8px 0; background: var(--soft); }
+  details summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+  details[open] summary { margin-bottom: 6px; color: var(--primary-d); }
   .big { font-size: 19px; }
   @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; } }
   @media print { header, nav.toc { display: none; } .wrap { display: block; } section { break-inside: avoid; } }
@@ -50,7 +57,7 @@
 </head>
 <body>
 <header>
-  <h1>📖 행정업무 비서 사용설명서</h1>
+  <h1>📖 행정업무 AI 사용설명서</h1>
   <a class="back" href="/">← 앱으로 돌아가기</a>
 </header>
 <div class="wrap">
@@ -266,7 +273,7 @@
   <h3>엉뚱한 샘플을 올렸을 때</h3>
   <p><span class="btn">📁 샘플</span>에서 그 파일 옆의 <span class="btn">빼기</span>를 누르세요. 남은 샘플로 다시 익힙니다.</p>
   <h3>처음부터 다시 하고 싶을 때 (초기화)</h3>
-  <p><span class="btn">📁 샘플</span> 맨 아래의 <span class="btn" style="background:#d64545;color:#fff">이 양식 학습 초기화</span>를 누르세요.</p>
+  <p><span class="btn">📁 샘플</span> 맨 아래의 <span class="btn" style="background:#c64545;color:#fff">이 양식 학습 초기화</span>를 누르세요.</p>
   <div class="ok">🛟 <b>걱정하지 마세요.</b> 초기화나 삭제를 하기 직전 상태는 <b>자동으로 백업</b>됩니다.
     <span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>백업 목록</b>에서 <span class="btn">이 상태로 되돌리기</span>를 누르면 돌아갑니다.</div>
 </section>
@@ -309,22 +316,22 @@
 <section id="onoff">
   <h2>11. 켜고 끄기</h2>
   <h3>켜기</h3>
-  <p>「행정업무 비서」 폴더의 <b>행정업무 비서.exe</b>를 두 번 누르면 앱 화면이 열립니다.</p>
+  <p>「행정업무 AI」 폴더의 <b>행정업무 AI.exe</b>를 두 번 누르면 앱 화면이 열립니다.</p>
   <h3>더 편하게 (한 번만 해 두면 됩니다)</h3>
   <ol class="steps">
-    <li><span class="btn">⚙ 설정 · 백업 · 초기화</span> → <span class="btn">바탕화면 바로가기 만들기</span> → 다음부터는 <b>바탕화면의 「행정업무 비서」 아이콘</b>을 두 번 누르면 됩니다.</li>
+    <li><span class="btn">⚙ 설정 · 백업 · 초기화</span> → <span class="btn">바탕화면 바로가기 만들기</span> → 다음부터는 <b>바탕화면의 「행정업무 AI」 아이콘</b>을 두 번 누르면 됩니다.</li>
     <li>☑ <b>컴퓨터를 켜면 자동으로 실행</b>에 체크하면, 컴퓨터를 켤 때 뒤에서 미리 켜져 있어 아이콘을 누르면 바로 열립니다.</li>
   </ol>
   <h3>끄기</h3>
   <p>왼쪽 아래 <span class="btn">⏻ 앱 종료</span>를 누르세요. 브라우저 탭만 닫으면 프로그램은 뒤에서 계속 켜져 있습니다. (켜져 있어도 문제는 없습니다)</p>
   <h3 id="update" style="scroll-margin-top:80px">새 버전으로 바꾸기</h3>
-  <p>새 버전이 나오면 화면 맨 위에 <b style="background:#e8f5e9;padding:0 6px">🎉 새 버전 v○.○.○이 나왔습니다</b> 라는 초록색 안내가 뜹니다.</p>
+  <p>새 버전이 나오면 화면 맨 위에 <b style="background:#cc785c;color:#fff;padding:0 6px;border-radius:4px">🎉 새 버전 v○.○.○이 나왔습니다</b> 라는 주황빛 안내가 뜹니다.</p>
   <ol class="steps">
     <li>안내의 <span class="btn blue">받으러 가기</span>를 누릅니다. 내려받기 페이지가 열립니다.</li>
     <li>페이지 아래쪽 <b>Assets</b>에서 <b>gian-learner-v○.○.○-windows.zip</b>을 눌러 내려받습니다.</li>
     <li>왼쪽 아래 <span class="btn">⏻ 앱 종료</span>로 지금 프로그램을 끕니다.</li>
-    <li>예전 「행정업무 비서」 폴더를 지우고, 새 zip을 <b>같은 자리에</b> 압축 풀기 합니다.</li>
-    <li>새 폴더의 <b>행정업무 비서.exe</b>를 두 번 누르면 끝입니다.</li>
+    <li>예전 「행정업무 AI」 폴더를 지우고, 새 zip을 <b>같은 자리에</b> 압축 풀기 합니다.</li>
+    <li>새 폴더의 <b>행정업무 AI.exe</b>를 두 번 누르면 끝입니다.</li>
   </ol>
   <div class="ok">✅ 익힌 양식·샘플·이력은 그대로 남습니다. (프로그램 폴더가 아닌 사용자 폴더에 저장되어 있기 때문입니다)</div>
   <div class="tip">💡 폴더 위치를 바꿨다면 ⚙ 설정에서 <b>바탕화면 바로가기</b>를 다시 만들어 주세요.
@@ -357,7 +364,7 @@
     초기화·삭제 직전 상태는 자동으로 백업됩니다. <span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>백업 목록</b> → <span class="btn">이 상태로 되돌리기</span>.
     작성 중인 글은 자동 임시저장되어 있습니다.</details>
   <details><summary>새 버전은 어떻게 받나요?</summary>
-    새 버전이 나오면 화면 위에 초록색 안내가 뜹니다. → <a href="#update">새 버전으로 바꾸기</a><br>직접 받으려면 인터넷 주소 <b>github.com/husky7025/gian-learner/releases</b> 에서 맨 위의 zip 파일을 받아, 기존 「행정업무 비서」 폴더를 지우고 새로 푼 폴더로 바꾸면 됩니다. 익힌 내용은 그대로 남습니다.
+    새 버전이 나오면 화면 위에 주황빛 안내가 뜹니다. → <a href="#update">새 버전으로 바꾸기</a><br>직접 받으려면 인터넷 주소 <b>github.com/husky7025/gian-learner/releases</b> 에서 맨 위의 zip 파일을 받아, 기존 「행정업무 AI」 폴더를 지우고 새로 푼 폴더로 바꾸면 됩니다. 익힌 내용은 그대로 남습니다.
     (폴더 위치가 바뀌면 바탕화면 바로가기를 다시 만들어 주세요)</details>
   <details><summary>한글(hwp) 프로그램이 없어도 되나요?</summary>
     파일을 <b>만드는 것</b>은 한글이 없어도 됩니다. 만든 파일을 <b>열어 보려면</b> 한글이 필요합니다.</details>

@@ -558,7 +558,13 @@ $("#resetForm").addEventListener("click", async () => {
 });
 $("#deleteForm").addEventListener("click", async () => {
   if (!confirm(`「${T.form.name}」 양식을 삭제할까요? (샘플과 생성 이력 포함, 직전 상태는 백업됩니다)`)) return;
-  try { await api(`/api/forms/${curId}`, { method: "DELETE" }); curId = null; localStorage.removeItem("gian-last-form"); await loadForms(); toast("삭제했습니다."); }
+  try {
+    const gone = curId;
+    await api(`/api/forms/${gone}`, { method: "DELETE" });
+    // 지운 양식의 임시저장 글이 브라우저에 남지 않게
+    Object.keys(localStorage).filter((k) => k.startsWith(`gian-draft-${gone}-`)).forEach((k) => localStorage.removeItem(k));
+    curId = null; localStorage.removeItem("gian-last-form"); await loadForms(); toast("삭제했습니다.");
+  }
   catch (e) { toast(e.message, true); }
 });
 $("#openSettings").addEventListener("click", () => openSettings().catch((e) => toast(e.message, true)));
@@ -634,7 +640,7 @@ function showSys(st) {
   $("#autostart").checked = !!st.autostart;
 }
 $("#mkDesktop").addEventListener("click", async () => {
-  try { showSys(await getJSON("/api/system/desktop-shortcut", { method: "POST" })); toast("바탕화면에 「행정업무 비서」 바로가기를 만들었습니다."); }
+  try { showSys(await getJSON("/api/system/desktop-shortcut", { method: "POST" })); toast("바탕화면에 「행정업무 AI」 바로가기를 만들었습니다."); }
   catch (e) { toast(e.message, true); }
 });
 $("#autostart").addEventListener("change", async (e) => {
@@ -647,7 +653,7 @@ $("#shutdown").addEventListener("click", async () => {
   if (!confirm("앱을 종료할까요? (학습 내용은 그대로 저장되어 있습니다)")) return;
   try { await api("/api/shutdown", { method: "POST" }); } catch (_) {}
   document.body.replaceChildren(h("div", { class: "empty" }, h("h1", {}, "앱을 종료했습니다"),
-    h("p", {}, "다시 쓰려면 바탕화면의 「행정업무 비서」 바로가기나 「행정업무 비서 실행.bat」을 여세요. 이 창은 닫아도 됩니다.")));
+    h("p", {}, "다시 쓰려면 바탕화면의 「행정업무 AI」 바로가기나 「행정업무 AI 실행.bat」을 여세요. 이 창은 닫아도 됩니다.")));
 });
 
 // ───────── 입력 도우미 ─────────
@@ -934,7 +940,9 @@ async function aiDraft() {
     catch (e) {
       if (e.message !== "CONSENT_REQUIRED") throw e;
       const name = CLOUD_NAME[AIS.provider] || AIS.provider;
-      const extraRef = aiRefs.length ? "· 첨부한 참고 서류 글자도 같은 방식으로 개인정보를 가려 보냅니다.\n" : "";
+      let extraRef = aiRefs.length ? "· 첨부한 참고 서류 글자도 같은 방식으로 개인정보를 가려 보냅니다.\n" : "";
+      if (aiRefs.some((f) => /\.(png|jpe?g|webp|pdf)$/i.test(f.name)))
+        extraRef += "· ⚠ 사진·스캔 PDF는 그림이라 개인정보를 자동으로 가릴 수 없어 그대로 보내집니다. 이름·연락처가 보이면 가린 뒤 올려 주세요.\n";
       if (!confirm(`${name} AI를 처음 사용합니다.\n\n· 적은 내용과 샘플 기안 글이 ${name} 서버로 보내집니다.\n${extraRef}· 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다.\n· 사용 요금은 내 API 계정에 청구됩니다.\n${AIS.provider === "gemini" ? "· ⚠ 무료 키(결제 미연결)로 보낸 내용은 Google이 제품 개선에 쓸 수 있습니다. 민감한 내용은 보내지 마세요.\n" : ""}\n계속할까요?`)) { $("#aiState").textContent = ""; return; }
       await api("/api/ai", { method: "PUT", json: { consent: { [AIS.provider]: true } } });
       r = await req();

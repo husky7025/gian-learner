@@ -6,6 +6,8 @@ import os
 import shutil
 import sqlite3
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -14,7 +16,8 @@ DB_PATH = DATA_DIR / "data.db"
 SAMPLES = DATA_DIR / "samples"
 OUTPUTS = DATA_DIR / "outputs"
 BACKUPS = DATA_DIR / "backups"
-MAX_BACKUPS = 20
+MAX_BACKUPS = 20          # 중요한 백업(초기화·삭제·복원·가져오기 전 등)
+MAX_ROUTINE_BACKUPS = 10  # 자주 생기는 백업(샘플 삭제·옮기기) — 중요한 백업을 밀어내지 않게 따로 센다
 CATEGORIES = {"gian": "기안", "pumui": "품의", "gatong": "가정통신문"}
 
 _lock = threading.RLock()
@@ -56,20 +59,41 @@ def connect() -> sqlite3.Connection:
     return con
 
 
+@contextmanager
+def db() -> Iterator[sqlite3.Connection]:
+    """연결 → 성공하면 저장(commit), 실패하면 되돌림(rollback) → 항상 닫기.
+    (sqlite3의 `with con:`은 닫아 주지 않아 Windows에서 파일 잠금이 남을 수 있다)"""
+    con = connect()
+    try:
+        with con:
+            yield con
+    finally:
+        con.close()
+
+
+def atomic_write_text(path: Path, text: str) -> None:
+    """임시 파일에 다 쓴 뒤 바꿔치기 — 쓰는 도중 꺼져도 원래 파일이 깨지지 않는다."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, "utf-8")
+    os.replace(tmp, path)
+
+
 def init() -> None:
     for d in (DATA_DIR, SAMPLES, OUTPUTS, BACKUPS):
         d.mkdir(parents=True, exist_ok=True)
-    with connect() as con:
+    with db() as con:
         con.executescript(SCHEMA)
         cols = [r["name"] for r in con.execute("PRAGMA table_info(forms)")]
         if "category" not in cols:  # 1단계에서 만든 DB 이어서 쓰기
             con.execute("ALTER TABLE forms ADD COLUMN category TEXT NOT NULL DEFAULT 'gian'")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_samples_form ON samples(form_id)")
+        con.execute("CREATE INDEX IF NOT EXISTS idx_history_form ON history(form_id)")
     ensure_defaults()
 
 
 def ensure_defaults() -> None:
     """분류마다 양식이 하나도 없으면 기본 양식을 하나 만든다."""
-    with _lock, connect() as con:
+    with _lock, db() as con:
         for key, label in CATEGORIES.items():
             if not con.execute("SELECT 1 FROM forms WHERE category=?", (key,)).fetchone():
                 con.execute("INSERT INTO forms(name, category, created) VALUES (?, ?, ?)", (label, key, now()))
@@ -78,7 +102,7 @@ def ensure_defaults() -> None:
 # ───────── 양식 ─────────
 
 def list_forms() -> list[dict]:
-    with connect() as con:
+    with db() as con:
         rows = con.execute(
             "SELECT f.id, f.name, f.category, f.created, (SELECT COUNT(*) FROM samples s WHERE s.form_id=f.id) AS sample_count "
             "FROM forms f ORDER BY f.id"
@@ -87,7 +111,7 @@ def list_forms() -> list[dict]:
 
 
 def get_form(form_id: int) -> dict | None:
-    with connect() as con:
+    with db() as con:
         r = con.execute("SELECT * FROM forms WHERE id=?", (form_id,)).fetchone()
     if not r:
         return None
@@ -99,32 +123,32 @@ def get_form(form_id: int) -> dict | None:
 def create_form(name: str, category: str = "gian") -> int:
     if category not in CATEGORIES:
         category = "gian"
-    with _lock, connect() as con:
+    with _lock, db() as con:
         cur = con.execute("INSERT INTO forms(name, category, created) VALUES (?, ?, ?)", (name, category, now()))
         return cur.lastrowid
 
 
 def rename_form(form_id: int, name: str) -> None:
-    with _lock, connect() as con:
+    with _lock, db() as con:
         con.execute("UPDATE forms SET name=? WHERE id=?", (name, form_id))
 
 
 def set_category(form_id: int, category: str) -> None:
     if category not in CATEGORIES:
         raise ValueError(category)
-    with _lock, connect() as con:
+    with _lock, db() as con:
         con.execute("UPDATE forms SET category=? WHERE id=?", (category, form_id))
 
 
 def set_overrides(form_id: int, overrides: dict) -> None:
-    with _lock, connect() as con:
+    with _lock, db() as con:
         con.execute("UPDATE forms SET overrides=? WHERE id=?", (json.dumps(overrides, ensure_ascii=False), form_id))
 
 
 def delete_form(form_id: int) -> None:
     with _lock:
         _remove_form_files(form_id)
-        with connect() as con:
+        with db() as con:
             con.execute("DELETE FROM forms WHERE id=?", (form_id,))
 
 
@@ -132,14 +156,14 @@ def reset_form(form_id: int) -> None:
     """학습 내용(샘플·수정 설정)만 지우고 양식 이름과 생성 이력은 남긴다."""
     with _lock:
         shutil.rmtree(SAMPLES / str(form_id), ignore_errors=True)
-        with connect() as con:
+        with db() as con:
             con.execute("DELETE FROM samples WHERE form_id=?", (form_id,))
             con.execute("UPDATE forms SET overrides='{}' WHERE id=?", (form_id,))
 
 
 def _remove_form_files(form_id: int) -> None:
     shutil.rmtree(SAMPLES / str(form_id), ignore_errors=True)
-    with connect() as con:
+    with db() as con:
         for r in con.execute("SELECT stored FROM history WHERE form_id=?", (form_id,)):
             (OUTPUTS / r["stored"]).unlink(missing_ok=True)
 
@@ -150,7 +174,7 @@ def add_sample(form_id: int, filename: str, data: bytes) -> int:
     with _lock:
         folder = SAMPLES / str(form_id)
         folder.mkdir(parents=True, exist_ok=True)
-        with connect() as con:
+        with db() as con:
             cur = con.execute(
                 "INSERT INTO samples(form_id, filename, stored, created) VALUES (?, ?, '', ?)",
                 (form_id, filename, now()),
@@ -163,7 +187,7 @@ def add_sample(form_id: int, filename: str, data: bytes) -> int:
 
 
 def list_samples(form_id: int) -> list[dict]:
-    with connect() as con:
+    with db() as con:
         rows = con.execute("SELECT * FROM samples WHERE form_id=? ORDER BY id", (form_id,)).fetchall()
     return [dict(r) for r in rows]
 
@@ -200,7 +224,7 @@ def _link_tree(src: Path, dst: Path) -> None:
 
 
 def move_sample(form_id: int, sample_id: int, to_form: int) -> None:
-    with _lock, connect() as con:
+    with _lock, db() as con:
         r = con.execute("SELECT stored FROM samples WHERE id=? AND form_id=?", (sample_id, form_id)).fetchone()
         if not r:
             return
@@ -212,7 +236,7 @@ def move_sample(form_id: int, sample_id: int, to_form: int) -> None:
 
 
 def delete_sample(form_id: int, sample_id: int) -> None:
-    with _lock, connect() as con:
+    with _lock, db() as con:
         r = con.execute("SELECT stored FROM samples WHERE id=? AND form_id=?", (sample_id, form_id)).fetchone()
         if r:
             (SAMPLES / r["stored"]).unlink(missing_ok=True)
@@ -224,7 +248,7 @@ def import_forms(forms: list[dict]) -> list[dict]:
     result = []
     with _lock:
         for f in forms:
-            with connect() as con:
+            with db() as con:
                 row = con.execute(
                     "SELECT f.id FROM forms f WHERE f.category=? AND f.name=? "
                     "AND NOT EXISTS (SELECT 1 FROM samples s WHERE s.form_id=f.id) ORDER BY f.id LIMIT 1",
@@ -251,7 +275,7 @@ def import_forms(forms: list[dict]) -> list[dict]:
 # ───────── 생성 이력 ─────────
 
 def add_history(form_id: int, filename: str, data: bytes, payload: dict) -> int:
-    with _lock, connect() as con:
+    with _lock, db() as con:
         cur = con.execute(
             "INSERT INTO history(form_id, filename, stored, payload, created) VALUES (?, ?, '', ?, ?)",
             (form_id, filename, json.dumps(payload, ensure_ascii=False), now()),
@@ -264,7 +288,7 @@ def add_history(form_id: int, filename: str, data: bytes, payload: dict) -> int:
 
 
 def list_history(form_id: int) -> list[dict]:
-    with connect() as con:
+    with db() as con:
         rows = con.execute(
             "SELECT id, filename, payload, created FROM history WHERE form_id=? ORDER BY id DESC LIMIT 200", (form_id,)
         ).fetchall()
@@ -272,7 +296,7 @@ def list_history(form_id: int) -> list[dict]:
 
 
 def get_history(hid: int) -> dict | None:
-    with connect() as con:
+    with db() as con:
         r = con.execute("SELECT * FROM history WHERE id=?", (hid,)).fetchone()
     return dict(r) if r else None
 
@@ -282,7 +306,7 @@ def history_bytes(h: dict) -> bytes:
 
 
 def delete_history(hid: int) -> None:
-    with _lock, connect() as con:
+    with _lock, db() as con:
         r = con.execute("SELECT stored FROM history WHERE id=?", (hid,)).fetchone()
         if r:
             (OUTPUTS / r["stored"]).unlink(missing_ok=True)
@@ -291,7 +315,26 @@ def delete_history(hid: int) -> None:
 
 # ───────── 백업·초기화·복원 ─────────
 
-def backup(reason: str) -> str:
+def _backup_info(p: Path) -> dict:
+    try:
+        return json.loads((p / "info.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _prune_backups() -> None:
+    """중요한 백업과 자주 생기는 백업을 따로 세어 오래된 것부터 지운다."""
+    groups: dict[str, list[Path]] = {"important": [], "routine": []}
+    for p in sorted(p for p in BACKUPS.iterdir() if p.is_dir()):
+        kind = "routine" if _backup_info(p).get("kind") == "routine" else "important"
+        groups[kind].append(p)
+    for kind, limit in (("important", MAX_BACKUPS), ("routine", MAX_ROUTINE_BACKUPS)):
+        for p in groups[kind][:-limit]:
+            shutil.rmtree(p, ignore_errors=True)
+
+
+def backup(reason: str, routine: bool = False) -> str:
+    """routine=True: 샘플 삭제·옮기기처럼 자주 생기는 백업 (중요한 백업 개수에 넣지 않음)."""
     with _lock:
         name = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
         dest = BACKUPS / name
@@ -304,20 +347,16 @@ def backup(reason: str) -> str:
         dst.close()
         _link_tree(SAMPLES, dest / "samples")
         _link_tree(OUTPUTS, dest / "outputs")
-        (dest / "info.json").write_text(json.dumps({"reason": reason, "created": now()}, ensure_ascii=False), "utf-8")
-        olds = sorted(p for p in BACKUPS.iterdir() if p.is_dir())
-        for p in olds[:-MAX_BACKUPS]:
-            shutil.rmtree(p, ignore_errors=True)
+        info = {"reason": reason, "created": now(), "kind": "routine" if routine else "important"}
+        (dest / "info.json").write_text(json.dumps(info, ensure_ascii=False), "utf-8")
+        _prune_backups()
         return name
 
 
 def list_backups() -> list[dict]:
     res = []
     for p in sorted((p for p in BACKUPS.iterdir() if p.is_dir()), reverse=True):
-        try:
-            info = json.loads((p / "info.json").read_text("utf-8"))
-        except (OSError, ValueError):
-            info = {}
+        info = _backup_info(p)
         res.append({"name": p.name, "reason": info.get("reason", ""), "created": info.get("created", p.name)})
     return res
 
@@ -342,7 +381,7 @@ def restore(name: str) -> None:
 
 def reset_all() -> None:
     with _lock:
-        with connect() as con:
+        with db() as con:
             con.execute("DELETE FROM history")
             con.execute("DELETE FROM samples")
             con.execute("DELETE FROM forms")

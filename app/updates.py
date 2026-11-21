@@ -46,7 +46,7 @@ def load_settings() -> dict:
 def save_settings(values: dict) -> dict:
     cur = load_settings()
     cur.update({k: v for k, v in values.items() if k in ("update_check",)})
-    SETTINGS.write_text(json.dumps(cur, ensure_ascii=False), "utf-8")
+    S.atomic_write_text(SETTINGS, json.dumps(cur, ensure_ascii=False))
     return cur
 
 

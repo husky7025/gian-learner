@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 
 PROJECT = Path(__file__).resolve().parent.parent
-LNK_NAME = "행정업무 비서.lnk"
+LNK_NAME = "행정업무 AI.lnk"
 ICON = r"%SystemRoot%\System32\imageres.dll,97"
 
 
@@ -61,7 +61,7 @@ def make_shortcut(path: Path, extra: str = "") -> None:
         "$s.TargetPath=$env:GL_TGT; $s.Arguments=$env:GL_ARGS; $s.WorkingDirectory=$env:GL_WD;"
         "$s.IconLocation=$env:GL_ICO; $s.Description=$env:GL_DESC; $s.Save()",
         {"GL_LNK": str(path), "GL_TGT": target, "GL_ARGS": args, "GL_WD": wd,
-         "GL_ICO": target if FROZEN else os.path.expandvars(ICON), "GL_DESC": "행정업무 비서"},
+         "GL_ICO": target if FROZEN else os.path.expandvars(ICON), "GL_DESC": "행정업무 AI"},
     )
 
 
