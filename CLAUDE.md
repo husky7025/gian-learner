@@ -15,4 +15,6 @@
 - ⚠ 시험할 때는 반드시 `GIAN_PORT=8766`(다른 포트)와 `GIAN_DATA_DIR`(임시 폴더)를 함께 지정한다. 8765에는 사용자가 실제로 쓰는 앱이 떠 있을 수 있다(2026-11-08 실수로 실제 데이터에 시험 샘플이 올라간 적 있음).
 - 표 줄 늘리기·줄이기는 만들지 않는다(사용자 결정 2026-11-21: 기안문엔 표가 없고 품의 표는 에듀파인이 자동 생성). 샘플 다른 양식 감지 `/api/forms/{id}/sample-check`(E.signature 유사도), 옮기기 `.../move`(백업 후).
 - 샘플 폴더 `샘플/`(사용자가 실제 샘플을 두는 곳)는 .gitignore 처리 — 절대 커밋하지 않는다.
+- AI 모델: 기본 gemini-3.6-flash / gpt-6-luna (2026-11). `RETIRED_MODELS`면 기본 모델로, 모델 없음 오류면 `pick_model`로 목록에서 골라 한 번 재시도 후 저장(결과에 switched_from).
+- 실행 bat: 같은 python의 pythonw로 창 없이 실행(for 변수는 %%i — %%p는 ~dp와 겹침, 한글 경로 때문에 PYTHONIOENCODING=utf-8). 시험 때는 cmd에 GIAN_PORT/GIAN_DATA_DIR가 실제로 넘어갔는지 /api/info로 꼭 확인(2026-11-21 bash→cmd로 안 넘어가 8765 실데이터로 켜진 적 있음).
 - AI 작성: `app/ai.py` — 제공자 ollama(기본)/claude(anthropic SDK, output_config json_schema, opus-5-5 등은 fallbacks="default")/gemini/openai(REST). 키는 `ai.json`에 DPAPI 암호화. 온라인 AI는 redact()로 개인정보 가림. 시험은 GIAN_CLAUDE_URL/GIAN_OPENAI_URL/GIAN_GEMINI_URL로 가짜 서버 지정. 실제 모델로 품질 검사는 아직 못 함.

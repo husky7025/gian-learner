@@ -760,7 +760,9 @@ async function aiDraft() {
     S = { filename: r.filename || "", fields: { ...base.fields, ...r.fields }, outline: r.outline.length ? r.outline : base.outline,
           attach: r.attach, cells: { ...r.cells } };
     saveDraft(); renderWrite(); refreshPreview();
-    $("#aiState").textContent = `✔ ${r.model}이(가) 작성했습니다. 오른쪽 미리보기를 확인하고, 고칠 곳은 고친 뒤 📄 HWPX 만들기를 누르세요.`;
+    $("#aiState").textContent = (r.switched_from ? `ℹ 「${r.switched_from}」 모델은 더 이상 쓸 수 없어 「${r.model}」(으)로 바꿨습니다(설정에도 저장). ` : "") +
+      `✔ ${r.model}이(가) 작성했습니다. 오른쪽 미리보기를 확인하고, 고칠 곳은 고친 뒤 📄 HWPX 만들기를 누르세요.`;
+    if (r.switched_from) loadAI();
     $("#generate").scrollIntoView({ behavior: "smooth", block: "center" });
   } catch (e) { $("#aiState").textContent = "✖ " + e.message; }
   finally { btn.disabled = false; }

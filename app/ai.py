@@ -25,16 +25,31 @@ AI_FILE = S.DATA_DIR / "ai.json"
 PROVIDERS = {
     "ollama": {"label": "로컬 AI (Ollama · 이 PC 안에서만)", "needs_key": False, "default_model": "qwen2.5:7b"},
     "claude": {"label": "Claude (Anthropic)", "needs_key": True, "default_model": "claude-opus-5-5"},
-    "gemini": {"label": "Gemini (Google)", "needs_key": True, "default_model": "gemini-2.5-flash"},
-    "openai": {"label": "ChatGPT (OpenAI)", "needs_key": True, "default_model": "gpt-4.1-mini"},
+    "gemini": {"label": "Gemini (Google)", "needs_key": True, "default_model": "gemini-3.6-flash"},
+    "openai": {"label": "ChatGPT (OpenAI)", "needs_key": True, "default_model": "gpt-6-luna"},
 }
 # 시험용으로 주소를 바꿀 수 있게(평소에는 공식 주소)
 OPENAI_URL = os.environ.get("GIAN_OPENAI_URL", "https://api.openai.com/v1")
 GEMINI_URL = os.environ.get("GIAN_GEMINI_URL", "https://generativelanguage.googleapis.com/v1beta")
 CLAUDE_URL = os.environ.get("GIAN_CLAUDE_URL")  # None이면 SDK 기본 주소
 FALLBACK_MODELS = {"claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"}
+# 회사가 지원을 끝냈거나 새 계정에 막은 모델 → 처음 쓰는 사람도 되도록 기본 모델로 바꿔 쓴다 (2026-11 기준)
+RETIRED_MODELS = {
+    "gemini": {"gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash", "gemini-2.0-flash-001",
+               "gemini-2.0-flash-lite", "gemini-2.0-flash-lite-001", "gemini-1.5-flash", "gemini-1.5-pro"},
+    "openai": {"gpt-4.1-mini", "gpt-4o-mini", "gpt-4.1", "gpt-4o", "gpt-4.1-nano"},
+}
+# 모델을 찾을 수 없을 때 대신 고를 순서 (목록에 있는 첫 모델)
+PREFERRED_MODELS = {
+    "gemini": ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-latest"],
+    "openai": ["gpt-6-luna", "gpt-6.1-terra", "gpt-5.6-luna"],
+}
 MAX_SAMPLE_CHARS = 6000
 MAX_SAMPLES = 5
+
+
+class ModelNotFound(Exception):
+    pass
 
 
 class AIError(RuntimeError):
@@ -320,8 +335,10 @@ def _http_json(url: str, payload: dict | None, headers: dict, timeout: int) -> d
         body = e.read().decode("utf-8", "replace")[:500]
         if e.code in (401, 403):
             raise AIError("API 키가 올바르지 않거나 권한이 없습니다. ⚙ 설정에서 키를 확인해 주세요.") from e
-        if e.code == 404:
-            raise AIError("모델 이름을 찾을 수 없습니다. ⚙ 설정에서 「목록 불러오기」로 모델을 다시 골라 주세요.") from e
+        low = body.lower()
+        if e.code == 404 or (e.code == 400 and "model" in low and any(
+                w in low for w in ("not found", "no longer available", "not supported", "deprecated", "does not exist", "unsupported"))):
+            raise AIError("모델 이름을 찾을 수 없습니다. ⚙ 설정에서 「목록 불러오기」로 모델을 다시 골라 주세요.") from ModelNotFound(body)
         if e.code == 429:
             raise AIError("사용량 한도에 걸렸습니다. 잠시 뒤 다시 시도하거나 요금제·결제 상태를 확인해 주세요.") from e
         raise AIError(f"AI 서버 오류({e.code}): {body[:200]}") from e
@@ -502,17 +519,52 @@ def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date) -> dict:
     key = _key(cfg, provider)
     if PROVIDERS[provider]["needs_key"] and not key:
         raise AIError(f"{PROVIDERS[provider]['label']} API 키가 없습니다. ⚙ 설정 → AI 작성 설정에서 키를 넣어 주세요.")
+    switched = None
+    if model in RETIRED_MODELS.get(provider, set()):  # 지원 끝난 모델이면 기본 모델로
+        switched, model = model, PROVIDERS[provider]["default_model"]
     schema = build_schema(tpl)
     prompt = build_prompt(tpl, sample_texts(sample_bytes, cloud), brief[:4000], ref, cloud)
-    if provider == "claude":
-        text = _call_claude(key, model, prompt, schema)
-    elif provider == "openai":
-        text = _call_openai(key, model, prompt, schema)
-    elif provider == "gemini":
-        text = _call_gemini(key, model, prompt, schema)
-    else:
-        text = _call_ollama(cfg["ollama_url"], model, prompt, schema)
+
+    def call(m: str) -> str:
+        if provider == "claude":
+            return _call_claude(key, m, prompt, schema)
+        if provider == "openai":
+            return _call_openai(key, m, prompt, schema)
+        if provider == "gemini":
+            return _call_gemini(key, m, prompt, schema)
+        return _call_ollama(cfg["ollama_url"], m, prompt, schema)
+
+    try:
+        text = call(model)
+    except AIError as e:
+        if provider not in PREFERRED_MODELS or "모델 이름" not in str(e):
+            raise
+        alt = pick_model(provider, exclude=model)  # 이 계정에서 쓸 수 있는 모델로 한 번 더
+        if not alt:
+            raise
+        switched = switched or model
+        model = alt
+        text = call(model)
+    if switched:  # 다음부터 바로 쓰도록 저장
+        cfg = _load()
+        cfg["models"][provider] = model
+        _save(cfg)
     result = clean_result(_parse_json(text), tpl, ref)
     if not result["outline"] and not result["fields"] and not result["cells"]:
         raise AIError("AI가 빈 답을 주었습니다. 내용을 조금 더 자세히 적어 다시 시도해 주세요.")
-    return {**result, "provider": provider, "model": model}
+    return {**result, "provider": provider, "model": model, "switched_from": switched}
+
+
+def pick_model(provider: str, exclude: str = "") -> str | None:
+    """이 API 키로 쓸 수 있는 모델 목록에서 알맞은 모델을 고른다."""
+    try:
+        names = [n for n in list_models(provider) if n != exclude and n not in RETIRED_MODELS.get(provider, set())]
+    except AIError:
+        return None
+    for want in PREFERRED_MODELS.get(provider, []):
+        if want in names:
+            return want
+    if provider == "gemini":
+        stable = [n for n in names if "flash" in n and not re.search(r"preview|exp|image|tts|audio|live|embedding", n)]
+        return sorted(stable)[-1] if stable else None
+    return None
