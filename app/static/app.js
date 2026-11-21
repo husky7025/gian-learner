@@ -773,6 +773,7 @@ $("#aiRefInput").addEventListener("change", (e) => { addAIRefs([...e.target.file
 const AI_EXAMPLES = {
   gian: [
     { label: "행사 계획", text: "11월 25일(수) 14:00~16:00 시청각실, 1학년 진로 특강 운영 계획. 외부 강사 1명 초빙. 운영 계획서 1부 첨부." },
+    { label: "가정통신문 배부", text: "1학년 학부모 대상 겨울방학 방과후학교 수강 신청 안내 가정통신문 배부. 배부일 12월 3일(목). 가정통신문 1부 첨부." },
     { label: "출석인정", text: "11월 27일(금) 대전시 과학탐구대회 참가 학생 3명(2학년) 출석인정결석 처리 요청. 참가 명단 1부 첨부." },
   ],
   pumui: [
@@ -780,11 +781,26 @@ const AI_EXAMPLES = {
     { label: "강사비 품의", text: "11월 25일(수) 진로 특강 외부 강사비(2시간) 지급. 금액 200,000원. 강사 이력서 및 영수증 첨부." },
   ],
   gatong: [
-    { label: "체험학습 안내", text: "12월 4일(금) 09:00~15:00 국립중앙과학관 1학년 현장체험학습 안내. 준비물: 필기도구, 편한 복장. 11월 27일까지 신청서 제출." },
-    { label: "방과후 신청", text: "겨울방학 방과후학교 수강 신청 안내. 기간: 1월 4일~1월 15일, 대상: 1·2학년 희망자. 12월 10일까지 담임교사 제출." },
+    { label: "체험학습 안내", text: "학부모님께 12월 4일(금) 09:00~15:00 국립중앙과학관 1학년 현장체험학습 안내. 준비물: 필기도구, 편한 복장. 참가 동의서를 11월 27일(금)까지 담임 선생님께 제출." },
+    { label: "방과후 신청", text: "학부모님께 겨울방학 방과후학교 수강 신청 안내. 기간: 1월 4일~1월 15일, 대상: 1·2학년 희망자. 하단 신청서를 12월 10일(목)까지 담임 선생님께 제출." },
   ],
 };
+const DOC_WORD = { gian: "기안", pumui: "품의", gatong: "가정통신문" };
+const AI_PLACEHOLDER = {
+  gian: "간단한 요청을 적거나, 아래에 공문·계획서를 올리면 서류를 읽고 기안을 써 드립니다. (가정통신문을 배부하는 기안도 여기서 씁니다)",
+  pumui: "간단한 요청을 적거나, 아래에 견적서·계획서를 올리면 서류를 읽고 품의를 써 드립니다.",
+  gatong: "학부모님께 알릴 내용을 적어 주세요. 기안문이 아니라 학부모님께 직접 나눠 드리는 가정통신문으로 써 드립니다.",
+};
+function renderCatWords(cat) {
+  const w = DOC_WORD[cat] || "기안";
+  const tab = document.querySelector('.tabs button[data-tab="write"]');
+  if (tab) tab.textContent = `③ ${w} 작성`;
+  $("#aiBrief").placeholder = AI_PLACEHOLDER[cat] || AI_PLACEHOLDER.gian;
+  const d = $("#aiDate");
+  if (d && d.parentElement && d.parentElement.firstChild.nodeType === 3) d.parentElement.firstChild.textContent = cat === "gatong" ? "발행일 " : "기안일 ";
+}
 function renderAIExamples(cat) {
+  renderCatWords(cat);
   const box = $("#aiExamples");
   if (!box) return;
   const list = AI_EXAMPLES[cat] || AI_EXAMPLES.gian;
@@ -919,7 +935,7 @@ async function aiDraft() {
   const started = Date.now();
   const showWait = () => {
     const sec = Math.floor((Date.now() - started) / 1000);
-    $("#aiState").textContent = `✍ AI가 기안을 쓰는 중… (${sec}초${refNote}${slow})`;
+    $("#aiState").textContent = `✍ AI가 ${DOC_WORD[T && T.form.category] || "기안"}을(를) 쓰는 중… (${sec}초${refNote}${slow})`;
   };
   showWait();
   const timer = setInterval(showWait, 1000);

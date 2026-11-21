@@ -251,21 +251,44 @@ MARKER_PREFIX = re.compile(r"^\s*(?:\d{1,2}[.)]|[가-하][.)]|\(\d{1,2}\)|\([가
 
 # ───────── 프롬프트 ─────────
 
-SYSTEM = """당신은 대한민국 학교의 공문서(기안문·품의서·가정통신문) 작성 담당자입니다.
-교사가 짧게 적은 내용을 받아, 이 학교의 기존 기안 샘플과 같은 문체·항목 구성·표현으로 새 기안을 완성합니다.
+SYSTEM_COMMON = """당신은 대한민국 학교의 공문서(기안문·품의서·가정통신문) 작성 담당자입니다.
+교사가 짧게 적은 내용을 받아, 이 학교의 기존 {doc} 샘플과 같은 문체·항목 구성·표현으로 새 {doc}을(를) 완성합니다.
 
 규칙
-1. 샘플 기안들의 문장 투, 항목 순서, 항목 제목, 끝맺음 표현(예: "…을 다음과 같이 품의하고자 합니다.")을 그대로 따릅니다.
+1. 샘플들의 문장 투, 항목 순서, 항목 제목, 끝맺음 표현을 그대로 따릅니다.
 2. 교사가 준 내용과 [참고 서류]에 없는 사실(금액, 수량, 날짜, 시간, 장소, 인원, 사람 이름, 문서번호)은 지어내지 않습니다. 필요한데 모르면 "○○"으로 비워 둡니다.
-3. [참고 서류](공문·견적서·계획서 등)가 주어지면 서류 속 핵심 사실(제목, 일시, 장소, 대상, 금액, 품목, 근거 문서번호 등)을 정확히 반영해 이 양식에 맞는 기안을 작성합니다.
+3. [참고 서류](공문·견적서·계획서 등)가 주어지면 서류 속 핵심 사실(제목, 일시, 장소, 대상, 금액, 품목, 근거 문서번호 등)을 정확히 반영합니다.
 4. 항목 번호(1. 가. 1) 가) 등)는 쓰지 않습니다. 번호는 프로그램이 depth로 붙입니다(0=1. 1=가. 2=1) 3=가)).
 5. outline의 각 항목: label에는 "일시", "장소"처럼 짧은 항목 제목만, value에는 내용만 씁니다. 제목 없는 문장 항목은 label을 ""로 둡니다.
-6. "끝." 표시와 붙임 번호는 쓰지 않습니다(자동). attach에는 "견적서 1부"처럼 붙임 문서 이름과 부수만 씁니다. 붙임이 없으면 빈 목록입니다.
-7. 날짜는 "2026. 11. 20.(금)", 시간은 "14:00~16:00", 금액은 "금250,000원(금이십오만원)" 형식으로 씁니다.
-8. fields의 각 값에는 앞의 제목(예: "제목  ")을 빼고 내용만 씁니다. cells(표 칸)도 내용만 씁니다.
-9. 양식 구조에 있는 항목은 되도록 모두 채우고, 교사의 내용에 맞지 않는 항목은 빼거나 바꿔도 됩니다. 필요한 항목은 추가해도 됩니다.
-10. filename은 기안 제목(건명)으로 짧게 씁니다.
-11. 반드시 지정한 JSON 형식으로만 답합니다."""
+6. 날짜는 "2026. 11. 20.(금)", 시간은 "14:00~16:00", 금액은 "금250,000원(금이십오만원)" 형식으로 씁니다.
+7. fields의 각 값에는 앞의 제목(예: "제목  ")을 빼고 내용만 씁니다. cells(표 칸)도 내용만 씁니다.
+8. 양식 구조에 있는 항목은 되도록 모두 채우고, 교사의 내용에 맞지 않는 항목은 빼거나 바꿔도 됩니다. 필요한 항목은 추가해도 됩니다.
+{extra}
+반드시 지정한 JSON 형식으로만 답합니다."""
+
+SYSTEM_EXTRA = {
+    "gian": """9. 결재받기 위한 기안문입니다. 끝맺음은 샘플처럼 "…을 다음과 같이 실시하고자 합니다." 같은 기안 문체를 씁니다.
+10. 학부모에게 가정통신문을 배부(발송)하기 위한 기안도 이 기안문으로 씁니다. 예: "…에 관한 가정통신문을 다음과 같이 배부하고자 합니다." 가정통신문 본문 전체를 기안에 옮겨 쓰지 말고 배부 목적·대상·일자 등 핵심만 쓰며, attach에 "○○ 안내 가정통신문 1부"처럼 넣습니다.
+11. "끝." 표시와 붙임 번호는 쓰지 않습니다(자동). attach에는 "계획서 1부"처럼 붙임 문서 이름과 부수만 씁니다. 붙임이 없으면 빈 목록입니다.
+12. filename은 기안 제목으로 짧게 씁니다.""",
+    "pumui": """9. 예산 집행을 위한 품의서입니다. 끝맺음은 샘플처럼 "…을 다음과 같이 품의하고자 합니다." 같은 품의 문체를 씁니다.
+10. "끝." 표시와 붙임 번호는 쓰지 않습니다(자동). attach에는 "견적서 1부"처럼 붙임 문서 이름과 부수만 씁니다. 붙임이 없으면 빈 목록입니다.
+11. filename은 품의 건명으로 짧게 씁니다.""",
+    "gatong": """9. 결재용 기안문이 아니라 학부모님께 직접 배부하는 가정통신문(안내문) 본문입니다. "수신", "제목", "…하고자 합니다", "붙임", "끝." 같은 기안문 표현을 쓰지 않습니다.
+10. 학부모님께 드리는 공손하고 따뜻한 높임말로 씁니다. 샘플처럼 인사말("학부모님, 안녕하십니까?" 등) → 안내 취지 → 세부 안내(일시·장소·대상·내용·준비물·신청 방법 등) → 협조 부탁 순서를 따릅니다.
+11. 회신·동의서(절취선 아래), 담당자·호수, 발행일, "푸른솔고등학교장" 같은 학교장 명의 부분은 샘플의 형식을 그대로 따르고, 날짜는 오늘(발행일) 기준으로 맞춥니다.
+12. attach는 보통 빈 목록입니다.
+13. filename은 가정통신문 제목(예: "○○ 안내 가정통신문")으로 짧게 씁니다.""",
+}
+DOC_NAME = {"gian": "기안문", "pumui": "품의서", "gatong": "가정통신문"}
+
+
+def system_prompt(category: str = "gian") -> str:
+    cat = category if category in SYSTEM_EXTRA else "gian"
+    return SYSTEM_COMMON.format(doc=DOC_NAME[cat], extra=SYSTEM_EXTRA[cat])
+
+
+SYSTEM = system_prompt("gian")  # 예전 이름 호환
 
 
 def build_schema(tpl: dict) -> dict:
@@ -348,17 +371,18 @@ def _sample_text(b: bytes, cloud: bool) -> str:
 
 
 def build_prompt(tpl: dict, samples: list[str], brief: str, ref: date, cloud: bool = False,
-                 refs: list[tuple[str, str]] | None = None) -> str:
+                 refs: list[tuple[str, str]] | None = None, category: str = "gian") -> str:
+    doc = DOC_NAME.get(category, "기안문")
     structure = json.dumps(describe_template(tpl, cloud), ensure_ascii=False, indent=1)
     if cloud:
         structure = redact(structure)
-    brief_text = brief.strip() or "(별도 코멘트 없음 — 아래 [참고 서류] 내용을 바탕으로 이 양식에 맞는 기안을 작성해 주세요)"
+    brief_text = brief.strip() or f"(별도 코멘트 없음 — 아래 [참고 서류] 내용을 바탕으로 이 양식에 맞는 {doc}을(를) 작성해 주세요)"
     parts = [
-        f"오늘(기안 기준일): {ref.year}. {ref.month}. {ref.day}.({WEEK[ref.weekday()]})",
+        f"오늘({'발행일' if category == 'gatong' else '기안 기준일'}): {ref.year}. {ref.month}. {ref.day}.({WEEK[ref.weekday()]})",
         "", "[교사가 적은 내용]", brief_text, "",
     ]
     if refs:
-        parts.append("[참고 서류] (아래 서류의 사실·수치·일정을 근거로 기안을 작성하세요)")
+        parts.append(f"[참고 서류] (아래 서류의 사실·수치·일정을 근거로 {doc}을(를) 작성하세요)")
         for name, txt in refs:
             body = redact(txt) if cloud else txt
             parts += [f"--- 참고 서류: {name} ---", body]
@@ -366,7 +390,7 @@ def build_prompt(tpl: dict, samples: list[str], brief: str, ref: date, cloud: bo
     parts += [
         "[이 양식의 구조] (fields·cells의 키는 그대로 쓰고, outline은 아래 구성을 참고해 새로 씁니다)",
         structure, "",
-        "[이 학교의 기존 기안 샘플] (문체와 구성을 따라 쓰세요. 내용은 베끼지 마세요)",
+        f"[이 학교의 기존 {doc} 샘플] (문체와 구성을 따라 쓰세요. 내용은 베끼지 마세요)",
     ]
     for i, s in enumerate(samples, 1):
         parts += [f"--- 샘플 {i} ---", s]
@@ -411,7 +435,8 @@ def _claude_client(key: str):
     return anthropic, anthropic.Anthropic(**kw)
 
 
-def _call_claude(key: str, model: str, prompt: str, schema: dict, media: list[dict] | None = None) -> str:
+def _call_claude(key: str, model: str, prompt: str, schema: dict, media: list[dict] | None = None,
+                 system: str = SYSTEM) -> str:
     anthropic, client = _claude_client(key)
     if media:
         content: list | str = []
@@ -422,7 +447,7 @@ def _call_claude(key: str, model: str, prompt: str, schema: dict, media: list[di
         content.append({"type": "text", "text": prompt})
     else:
         content = prompt
-    common = dict(model=model, max_tokens=16000, system=SYSTEM,
+    common = dict(model=model, max_tokens=16000, system=system,
                   messages=[{"role": "user", "content": content}],
                   output_config={"format": {"type": "json_schema", "schema": schema}})
     try:
@@ -451,10 +476,10 @@ def _call_claude(key: str, model: str, prompt: str, schema: dict, media: list[di
     return next((b.text for b in resp.content if b.type == "text"), "")
 
 
-def _call_openai(key: str, model: str, prompt: str, schema: dict) -> str:
+def _call_openai(key: str, model: str, prompt: str, schema: dict, system: str = SYSTEM) -> str:
     data = _http_json(f"{OPENAI_URL}/chat/completions", {
         "model": model,
-        "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
         "response_format": {"type": "json_schema", "json_schema": {"name": "gian_draft", "schema": schema, "strict": True}},
     }, {"Authorization": f"Bearer {key}"}, 180)
     ch = (data.get("choices") or [{}])[0]
@@ -463,13 +488,14 @@ def _call_openai(key: str, model: str, prompt: str, schema: dict) -> str:
     return ch.get("message", {}).get("content") or ""
 
 
-def _call_gemini(key: str, model: str, prompt: str, schema: dict, media: list[dict] | None = None) -> str:
+def _call_gemini(key: str, model: str, prompt: str, schema: dict, media: list[dict] | None = None,
+                 system: str = SYSTEM) -> str:
     url, hdr = f"{GEMINI_URL}/models/{model}:generateContent", {"x-goog-api-key": key}
     media_parts = [{"inlineData": {"mimeType": m["mime"], "data": base64.b64encode(m["data"]).decode("ascii")}}
                    for m in media or []]
 
     def body(text: str, gen: dict) -> dict:
-        return {"systemInstruction": {"parts": [{"text": SYSTEM}]},
+        return {"systemInstruction": {"parts": [{"text": system}]},
                 "contents": [{"role": "user", "parts": [{"text": text}, *media_parts]}],
                 "generationConfig": gen}
     gen = {"responseMimeType": "application/json", "temperature": 0.3}
@@ -486,11 +512,11 @@ def _call_gemini(key: str, model: str, prompt: str, schema: dict, media: list[di
     return "".join(p.get("text", "") for p in cands[0].get("content", {}).get("parts", []))
 
 
-def _call_ollama(url: str, model: str, prompt: str, schema: dict) -> str:
+def _call_ollama(url: str, model: str, prompt: str, schema: dict, system: str = SYSTEM) -> str:
     try:
         data = _http_json(f"{url}/api/chat", {
             "model": model, "stream": False, "format": schema,
-            "messages": [{"role": "system", "content": SYSTEM}, {"role": "user", "content": prompt}],
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": prompt}],
             "options": {"temperature": 0.3, "num_ctx": 16384},
         }, {}, 600)
     except AIError as e:
@@ -586,7 +612,8 @@ VISION_PROVIDERS = {"gemini", "claude"}
 
 
 def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date,
-          refs: list[tuple[str, str]] | None = None, media: list[dict] | None = None) -> dict:
+          refs: list[tuple[str, str]] | None = None, media: list[dict] | None = None,
+          category: str = "gian") -> dict:
     refs = refs or []
     media = media or []
     if not brief.strip() and not refs and not media:
@@ -606,17 +633,18 @@ def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date,
     schema = build_schema(tpl)
     if media:
         names = ", ".join(m["name"] for m in media)
-        refs = [*refs, (f"첨부 이미지·스캔 PDF({names})", "함께 첨부된 이미지/스캔 PDF 파일의 내용을 직접 읽어 기안에 반영하세요.")]
-    prompt = build_prompt(tpl, sample_texts(sample_bytes, cloud), brief[:4000], ref, cloud, refs)
+        refs = [*refs, (f"첨부 이미지·스캔 PDF({names})", f"함께 첨부된 이미지/스캔 PDF 파일의 내용을 직접 읽어 {DOC_NAME.get(category, '기안문')}에 반영하세요.")]
+    prompt = build_prompt(tpl, sample_texts(sample_bytes, cloud), brief[:4000], ref, cloud, refs, category)
+    system = system_prompt(category)
 
     def call(m: str) -> str:
         if provider == "claude":
-            return _call_claude(key, m, prompt, schema, media)
+            return _call_claude(key, m, prompt, schema, media, system)
         if provider == "openai":
-            return _call_openai(key, m, prompt, schema)
+            return _call_openai(key, m, prompt, schema, system)
         if provider == "gemini":
-            return _call_gemini(key, m, prompt, schema, media)
-        return _call_ollama(cfg["ollama_url"], m, prompt, schema)
+            return _call_gemini(key, m, prompt, schema, media, system)
+        return _call_ollama(cfg["ollama_url"], m, prompt, schema, system)
 
     try:
         text = call(model)

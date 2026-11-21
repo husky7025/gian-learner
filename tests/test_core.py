@@ -175,6 +175,17 @@ def test_gemini_schema_fallback(fake_gemini):
     assert FakeGemini.calls == [("gemini-3.6-flash", True)]
 
 
+def test_category_prompts():
+    gatong = AI.system_prompt("gatong")
+    assert "학부모님께 직접 배부하는 가정통신문" in gatong and "하고자 합니다\"" not in gatong.split("9.")[0]
+    gian = AI.system_prompt("gian")
+    assert "가정통신문을 배부" in gian and "기안문" in gian
+    assert "품의하고자" in AI.system_prompt("pumui")
+    assert AI.system_prompt("없는분류") == gian
+    p = AI.build_prompt(TPL, ["샘플 글"], "안내", date(2026, 11, 21), category="gatong")
+    assert "기존 가정통신문 샘플" in p and "오늘(발행일)" in p
+
+
 # ───────── AI 참고 서류 ─────────
 
 def test_extract_ref_text():

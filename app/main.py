@@ -602,7 +602,7 @@ def _ai_draft_work(f: dict, brief: str, ref: _date, files: list[tuple[str, bytes
         else:
             refs.append((name, item["text"]))
     try:
-        res = AI.draft(tpl, [S.sample_bytes(s) for s in samples], brief, ref, refs, media)
+        res = AI.draft(tpl, [S.sample_bytes(s) for s in samples], brief, ref, refs, media, f.get("category", "gian"))
     except AI.AIError as e:
         if str(e) == "CONSENT_REQUIRED":
             raise HTTPException(409, "CONSENT_REQUIRED") from e

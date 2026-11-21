@@ -12,3 +12,4 @@ build/
 *.odt
 *.pdf
 .pytest_cache/
+학습용/
