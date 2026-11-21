@@ -224,12 +224,23 @@ SYSTEM = """당신은 대한민국 학교의 공문서(기안문·품의서·가
 7. fields의 각 값에는 앞의 제목(예: "제목  ")을 빼고 내용만 씁니다. cells(표 칸)도 내용만 씁니다.
 8. 양식 구조에 있는 항목은 되도록 모두 채우고, 교사의 내용에 맞지 않는 항목은 빼거나 바꿔도 됩니다. 필요한 항목은 추가해도 됩니다.
 9. filename은 기안 제목(건명)으로 짧게 씁니다.
-10. 반드시 지정한 JSON 형식으로만 답합니다."""
+10. rows(표의 반복 줄, 예: 물품 목록)는 표마다 한 줄에 물품 하나씩, columns 순서대로 칸 글자를 씁니다. 연번 칸은 ""로 두면 자동 번호가 붙습니다. 교사가 준 품목만 쓰고, 금액은 수량×단가로 계산합니다.
+11. 반드시 지정한 JSON 형식으로만 답합니다."""
+
+
+def _cell_keys(tpl: dict) -> list[str]:
+    return [c["key"] for t in tpl.get("tables", []) for r in t["rows"] for c in r if c["type"] == "field" and not c.get("rep")]
+
+
+def _rep_tables(tpl: dict) -> list[dict]:
+    return [t for t in tpl.get("tables", []) if (t.get("repeat") or {}).get("on")]
 
 
 def build_schema(tpl: dict) -> dict:
     field_ids = [b["id"] for b in tpl["blocks"] if b["type"] == "field"]
-    cell_keys = [c["key"] for t in tpl.get("tables", []) for r in t["rows"] for c in r if c["type"] == "field"]
+    cell_keys = _cell_keys(tpl)
+    rep_keys = [str(t["gti"]) for t in _rep_tables(tpl)]
+    row_list = {"type": "array", "items": {"type": "array", "items": {"type": "string"}}}
     obj = lambda keys: {"type": "object", "properties": {k: {"type": "string"} for k in keys},  # noqa: E731
                         "required": keys, "additionalProperties": False}
     return {
@@ -243,8 +254,10 @@ def build_schema(tpl: dict) -> dict:
                 "required": ["depth", "label", "value"], "additionalProperties": False}},
             "attach": {"type": "array", "items": {"type": "string"}},
             "cells": obj(cell_keys),
+            "rows": {"type": "object", "properties": {k: row_list for k in rep_keys},
+                     "required": rep_keys, "additionalProperties": False},
         },
-        "required": ["filename", "fields", "outline", "attach", "cells"],
+        "required": ["filename", "fields", "outline", "attach", "cells", "rows"],
         "additionalProperties": False,
     }
 
@@ -254,7 +267,7 @@ def describe_template(tpl: dict, cloud: bool = False) -> dict:
         if cloud and any(w in (label or "") for w in ROLE_WORDS):
             return LEADING_NAME.sub("○○○", value or "")
         return value
-    out: dict = {"fields": [], "outline": [], "other_items": [], "attach_examples": [], "cells": []}
+    out: dict = {"fields": [], "outline": [], "other_items": [], "attach_examples": [], "cells": [], "rows": []}
     for b in tpl["blocks"]:
         if b["type"] == "field":
             out["fields"].append({"id": b["id"], "label": b["label"], "examples": b.get("examples", [])[:3]})
@@ -270,8 +283,13 @@ def describe_template(tpl: dict, cloud: bool = False) -> dict:
         for row in t["rows"]:
             head = next((c["text"] for c in row if c["type"] == "fixed" and c["text"].strip()), "")
             for c in row:
-                if c["type"] == "field":
+                if c["type"] == "field" and not c.get("rep"):
                     out["cells"].append({"key": c["key"], "row_title": head, "examples": c.get("examples", [])[:2]})
+        rep = t.get("repeat") or {}
+        if rep.get("on"):
+            out["rows"].append({"key": str(t["gti"]), "columns": [c["head"] or f"{i + 1}번째 칸" for i, c in enumerate(rep["cols"])],
+                                "examples": [[c["examples"][k] if k < len(c["examples"]) else "" for c in rep["cols"]]
+                                             for k in range(2)]})
     return out
 
 
@@ -460,7 +478,7 @@ def _parse_json(text: str) -> dict:
 def clean_result(raw: dict, tpl: dict, ref: date) -> dict:
     fx = lambda s: fix_text(str(s or "").strip(), ref.year)  # noqa: E731
     field_ids = {b["id"] for b in tpl["blocks"] if b["type"] == "field"}
-    cell_keys = {c["key"] for t in tpl.get("tables", []) for r in t["rows"] for c in r if c["type"] == "field"}
+    cell_keys = set(_cell_keys(tpl))
     fields = {k: fx(v) for k, v in (raw.get("fields") or {}).items() if k in field_ids}
     for b in tpl["blocks"]:  # 제목(접두어)을 AI가 같이 써 넣은 경우 떼기
         if b["type"] == "field" and b["id"] in fields and b.get("prefix", "").strip():
@@ -486,8 +504,23 @@ def clean_result(raw: dict, tpl: dict, ref: date) -> dict:
         if x:
             attach.append(x)
     cells = {k: fx(v) for k, v in (raw.get("cells") or {}).items() if k in cell_keys}
+    rows: dict = {}
+    raw_rows = raw.get("rows") if isinstance(raw.get("rows"), dict) else {}
+    for t in _rep_tables(tpl):
+        ncol = len(t["repeat"]["cols"])
+        lst = raw_rows.get(str(t["gti"]))
+        if not isinstance(lst, list):
+            continue
+        clean = []
+        for r in lst[:E.MAX_REPEAT_ROWS]:
+            if isinstance(r, list):
+                vals = [fx(v) for v in r[:ncol]] + [""] * max(0, ncol - len(r))
+                if any(v.strip() for v in vals):
+                    clean.append(vals)
+        if clean:
+            rows[str(t["gti"])] = clean
     filename = re.sub(r'[\\/:*?"<>|]+', " ", str(raw.get("filename") or "")).strip()[:80]
-    return {"filename": filename, "fields": fields, "outline": outline, "attach": attach, "cells": cells}
+    return {"filename": filename, "fields": fields, "outline": outline, "attach": attach, "cells": cells, "rows": rows}
 
 
 def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date) -> dict:
@@ -513,6 +546,6 @@ def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date) -> dict:
     else:
         text = _call_ollama(cfg["ollama_url"], model, prompt, schema)
     result = clean_result(_parse_json(text), tpl, ref)
-    if not result["outline"] and not result["fields"] and not result["cells"]:
+    if not result["outline"] and not result["fields"] and not result["cells"] and not result["rows"]:
         raise AIError("AI가 빈 답을 주었습니다. 내용을 조금 더 자세히 적어 다시 시도해 주세요.")
     return {**result, "provider": provider, "model": model}

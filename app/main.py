@@ -101,7 +101,12 @@ class GenerateIn(BaseModel):
     outline: list[dict] | None = None
     attach: list[str] | None = None
     cells: dict[str, str] = {}
+    rows: dict[str, list[list[str]]] = {}
     save_history: bool = True
+
+
+class MoveSampleIn(BaseModel):
+    to_form: int
 
 
 # ───────── API ─────────
@@ -215,6 +220,59 @@ def delete_sample(form_id: int, sample_id: int):
     return {"ok": True}
 
 
+@app.get("/api/forms/{form_id}/sample-check")
+def sample_check(form_id: int):
+    """샘플마다 이 양식보다 다른 양식(예: 기안 칸에 품의 샘플)과 더 닮았는지 본다."""
+    f = _form_or_404(form_id)
+    sigs: dict[int, list[tuple[int, set]]] = {}
+    names: dict[int, dict] = {}
+    for g in S.list_forms():
+        items = []
+        for s in S.list_samples(g["id"]):
+            try:
+                items.append((s["id"], E.signature(S.sample_bytes(s))))
+            except Exception:  # noqa: BLE001
+                continue
+        if items:
+            sigs[g["id"]] = items
+            names[g["id"]] = g
+    own = sigs.get(form_id, [])
+    out = []
+    for sid, sg in own:
+        mates = [E.similarity(sg, o) for oid, o in own if oid != sid]
+        own_score = sum(mates) / len(mates) if mates else None
+        best = None
+        for gid, items in sigs.items():
+            if gid == form_id:
+                continue
+            score = sum(E.similarity(sg, o) for _, o in items) / len(items)
+            if best is None or score > best[1]:
+                best = (gid, score)
+        if best and best[1] >= 0.4 and (own_score is None or best[1] > own_score + 0.2):
+            g = names[best[0]]
+            out.append({"sample_id": sid, "own": None if own_score is None else round(own_score, 2),
+                        "suggest_form": g["id"], "suggest_name": f"{S.CATEGORIES.get(g['category'], '')} › {g['name']}",
+                        "score": round(best[1], 2)})
+    return {"form": f["id"], "mismatches": out}
+
+
+@app.post("/api/forms/{form_id}/samples/{sample_id}/move")
+def move_sample(form_id: int, sample_id: int, body: MoveSampleIn):
+    f = _form_or_404(form_id)
+    _form_or_404(body.to_form)
+    if body.to_form == form_id:
+        raise HTTPException(400, "같은 양식입니다.")
+    if not any(s["id"] == sample_id for s in S.list_samples(form_id)):
+        raise HTTPException(404, "샘플이 없습니다.")
+    S.backup(f"샘플옮기기-{f['name']}")
+    S.move_sample(form_id, sample_id, body.to_form)
+    ov = f["overrides"]
+    if ov.get("base_sample_id") == sample_id:
+        ov.pop("base_sample_id")
+        S.set_overrides(form_id, ov)
+    return {"ok": True}
+
+
 @app.get("/api/forms/{form_id}/samples/{sample_id}/download")
 def download_sample(form_id: int, sample_id: int):
     _form_or_404(form_id)
@@ -227,7 +285,9 @@ def download_sample(form_id: int, sample_id: int):
 @app.put("/api/forms/{form_id}/overrides")
 def put_overrides(form_id: int, body: OverridesIn):
     _form_or_404(form_id)
-    ov: dict = {"lines": {k: v for k, v in body.lines.items() if v in ("fixed", "field") and re.fullmatch(r"[hf]\d+|c\d+_\d+_\d+", k)}}
+    ov: dict = {"lines": {k: v for k, v in body.lines.items()
+                          if (v in ("fixed", "field") and re.fullmatch(r"[hf]\d+|c\d+_\d+_\d+", k))
+                          or (v in ("on", "off") and re.fullmatch(r"rep\d+", k))}}
     if body.base_sample_id is not None:
         ov["base_sample_id"] = body.base_sample_id
     S.set_overrides(form_id, ov)

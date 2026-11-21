@@ -73,7 +73,52 @@ function freshState() {
     if (b.type === "outline") st.outline = clone(b.items);
     if (b.type === "attach") st.attach = clone(b.default);
   }
+  st.rows = {}; st.manual = {};
+  for (const t of tpl.tables || []) if (t.repeat && t.repeat.on) st.rows[t.gti] = clone(t.repeat.default_rows);
   return st;
+}
+// 표 반복 줄(물품 목록) 상태를 템플릿에 맞추기 — 예전 기록·임시저장은 표 칸 값으로 줄을 만든다
+function ensureRows() {
+  S.rows = S.rows || {}; S.manual = S.manual || {}; S.cells = S.cells || {};
+  for (const t of T.template.tables || []) {
+    const rep = t.repeat;
+    if (!rep || !rep.on) continue;
+    const cur = S.rows[t.gti];
+    const ok = Array.isArray(cur) && cur.length && cur.every((r) => Array.isArray(r) && r.length === rep.cols.length);
+    if (ok) continue;
+    const flat = t.rows.flat(); const fromCells = [];
+    for (let r = rep.start; r <= rep.end; r++) {
+      const vals = rep.cols.map((col) => { const c = flat.find((x) => x.r === r && x.c === col.c); return c ? S.cells[c.key] : undefined; });
+      if (vals.some((v) => v != null && v !== "")) fromCells.push(vals.map((v) => v ?? ""));
+    }
+    S.rows[t.gti] = fromCells.length ? fromCells : clone(rep.default_rows);
+  }
+}
+const toNum = (v) => { const x = String(v ?? "").replace(/[^\d.-]/g, ""); return x && !isNaN(+x) ? +x : null; };
+const fillLike = (sample, n) => { const s = String(sample || ""); const w = Math.round(n).toLocaleString("ko-KR"); return /\d/.test(s) ? s.replace(/\d[\d,]*/, w) : w; };
+const blankRow = (rep) => rep.cols.map((c) => (c.num ? "" : c.const || ""));
+function renumber(rep, rows) {
+  rep.cols.forEach((col, k) => { if (col.num) rows.forEach((r, i) => { if (!r[k] || /^\d+$/.test(r[k])) r[k] = String(i + 1); }); });
+}
+function rowAmount(rep, r) {
+  const idx = (role) => rep.cols.findIndex((x) => x.role === role);
+  const qi = idx("qty"), pi = idx("price"), ai = idx("amount");
+  if (qi < 0 || pi < 0 || ai < 0) return;
+  const q = toNum(r[qi]), pr = toNum(r[pi]);
+  if (q != null && pr != null) r[ai] = fillLike(r[ai] || rep.cols[ai].examples[0], q * pr);
+}
+function recalcSums(t) {
+  const rep = t.repeat; const rows = S.rows[t.gti] || [];
+  for (const c of t.rows.flat()) {
+    if (c.sum_of == null || S.manual[c.key]) continue;
+    const k = rep.cols.findIndex((x) => x.c === c.sum_of);
+    const vals = rows.map((r) => toNum(r[k])).filter((v) => v != null);
+    if (vals.length) S.cells[c.key] = fillLike(c.text || c.default, vals.reduce((a, b) => a + b, 0));
+  }
+}
+function afterRowsLoaded() {
+  ensureRows();
+  for (const t of T.template.tables || []) if (t.repeat && t.repeat.on) { renumber(t.repeat, S.rows[t.gti]); recalcSums(t); }
 }
 function saveDraft() {
   if (!S || !curId) return;
@@ -132,6 +177,7 @@ async function loadTemplate() {
     const saved = localStorage.getItem(draftKey());
     S = saved ? JSON.parse(saved) : freshState();
     S.cells = S.cells || {};
+    afterRowsLoaded();
     $("#draftState").textContent = saved ? "임시저장된 내용을 불러왔습니다" : "";
   } else S = null;
   renderAll();
@@ -228,9 +274,12 @@ function outlineRow(it, i, mk, redraw) {
 }
 function tablesAt(src) { return (T.template.tables || []).filter((t) => t.src === src); }
 function tableGrid(t, mode, onToggle) {
+  if (mode === "write" && t.repeat && t.repeat.on) return repeatGrid(t);
+  const rep = t.repeat && t.repeat.on ? t.repeat : null;
   const tb = h("table", { class: "grid" + (mode === "learn" ? " learn" : "") });
   for (const row of t.rows) {
-    const tr = h("tr");
+    const inRep = rep && row.length && row[0].r >= rep.start && row[0].r <= rep.end;
+    const tr = h("tr", { class: inRep ? "rep-row" : null });
     for (const c of row) {
       const td = h("td", { class: c.locked ? "fixed locked" : c.type, colspan: c.cs > 1 ? c.cs : null, rowspan: c.rs > 1 ? c.rs : null });
       if (mode === "write" && c.type === "field") {
@@ -241,8 +290,8 @@ function tableGrid(t, mode, onToggle) {
       } else {
         td.append(c.text || " ");
         if (mode === "learn") {
-          td.title = c.locked ? "안에 표·그림이 있어 바꿀 수 없습니다" : (c.type === "fixed" ? "누르면 입력칸으로" : "누르면 고정으로");
-          if (!c.locked) td.addEventListener("click", () => onToggle(c));
+          td.title = c.locked ? "안에 표·그림이 있어 바꿀 수 없습니다" : c.rep ? "반복 줄 칸 (작성 탭에서 줄마다 입력)" : (c.type === "fixed" ? "누르면 입력칸으로" : "누르면 고정으로");
+          if (!c.locked && !c.rep) td.addEventListener("click", () => onToggle(c));
         }
       }
       tr.append(td);
@@ -250,6 +299,95 @@ function tableGrid(t, mode, onToggle) {
     tb.append(tr);
   }
   return tb;
+}
+function repeatGrid(t) {
+  const rep = t.repeat;
+  const wrap = h("div", { class: "repwrap" });
+  const hasCalc = rep.cols.some((c) => c.role === "amount");
+  const syncSums = () => wrap.querySelectorAll("textarea[data-sum]").forEach((ta) => { ta.value = S.cells[ta.dataset.sum] ?? ""; });
+  const draw = (focusRow) => {
+    const rows = S.rows[t.gti];
+    const tb = h("table", { class: "grid" });
+    for (const row of t.rows) {
+      const r0 = row.length ? row[0].r : -1;
+      if (r0 >= rep.start && r0 <= rep.end) {
+        if (r0 !== rep.start) continue;
+        rows.forEach((vals, i) => {
+          const tr = h("tr", { class: "rep-row" });
+          rep.cols.forEach((col, k) => {
+            const ta = h("textarea", { rows: 1, placeholder: col.examples[0] ? "예) " + col.examples[0] : col.head,
+              oninput: (e) => {
+                vals[k] = e.target.value; autoGrow(e.target);
+                if (col.role === "qty" || col.role === "price") {
+                  rowAmount(rep, vals);
+                  const ai = rep.cols.findIndex((x) => x.role === "amount");
+                  const other = ai >= 0 ? tr.children[ai].querySelector("textarea") : null;
+                  if (other) other.value = vals[ai];
+                }
+                recalcSums(t); syncSums(); changed();
+              },
+              onpaste: (e) => {
+                const txt = (e.clipboardData || window.clipboardData).getData("text");
+                if (!/[\t\n]/.test(txt.replace(/\s+$/, ""))) return;
+                e.preventDefault(); pasteRows(t, i, k, txt); draw(); changed();
+              } });
+            ta.value = vals[k] ?? "";
+            tr.append(h("td", { class: "field", colspan: col.cs > 1 ? col.cs : null }, ta));
+          });
+          tr.append(h("td", { class: "rowctl" }, h("button", { class: "small", title: "이 줄 지우기", onclick: () => {
+            rows.splice(i, 1); if (!rows.length) rows.push(blankRow(rep));
+            renumber(rep, rows); recalcSums(t); draw(); changed(); } }, "✕")));
+          tb.append(tr);
+        });
+        continue;
+      }
+      const tr = h("tr");
+      for (const c of row) {
+        const td = h("td", { class: c.locked ? "fixed locked" : c.type, colspan: c.cs > 1 ? c.cs : null, rowspan: c.rs > 1 ? c.rs : null });
+        if (c.type === "field") {
+          const ta = h("textarea", { rows: 1, placeholder: c.sum_of != null ? "자동 합계" : (c.examples && c.examples[0] ? "예) " + c.examples[0] : ""),
+            oninput: (e) => {
+              S.cells[c.key] = e.target.value; autoGrow(e.target);
+              if (c.sum_of != null) { S.manual[c.key] = e.target.value.trim() !== ""; if (!S.manual[c.key]) { recalcSums(t); syncSums(); } }
+              changed(); } });
+          if (c.sum_of != null) { ta.dataset.sum = c.key; ta.title = "물품 줄의 금액을 더해 자동으로 채웁니다. 직접 고치면 그 값을 쓰고, 지우면 다시 자동 계산합니다."; }
+          ta.value = S.cells[c.key] ?? c.default ?? "";
+          td.append(ta);
+        } else td.append(c.text || " ");
+        tr.append(td);
+      }
+      tr.append(h("td", { class: "rowctl" }));
+      tb.append(tr);
+    }
+    wrap.replaceChildren(h("div", { class: "repscroll" }, tb), h("div", { class: "chips" },
+      h("button", { class: "small", onclick: () => {
+        if (rows.length >= 200) return toast("줄은 200개까지 넣을 수 있습니다.", true);
+        rows.push(blankRow(rep)); renumber(rep, rows); draw(rows.length - 1); changed(); } }, "＋ 줄 추가"),
+      h("span", { class: "muted small" }, "엑셀·견적서에서 여러 줄을 복사해 칸에 붙여 넣으면 한꺼번에 들어갑니다" +
+        (hasCalc ? " · 금액은 수량×단가, 합계는 자동 계산" : ""))));
+    wrap.querySelectorAll("textarea").forEach(autoGrow);
+    if (focusRow != null) {
+      const tr = wrap.querySelectorAll("tr.rep-row")[focusRow];
+      const ta = tr && [...tr.querySelectorAll("textarea")].find((x, k) => !rep.cols[k].num);
+      if (ta) ta.focus();
+    }
+  };
+  draw();
+  return wrap;
+}
+function pasteRows(t, i, k, txt) {
+  const rep = t.repeat; const rows = S.rows[t.gti];
+  const lines = txt.replace(/\r/g, "").replace(/\n+$/, "").split("\n").slice(0, 200).map((l) => l.split("\t"));
+  const ai = rep.cols.findIndex((x) => x.role === "amount");
+  lines.forEach((cells, di) => {
+    const ri = i + di;
+    if (ri >= 200) return;
+    while (rows.length <= ri) rows.push(blankRow(rep));
+    cells.forEach((v, dk) => { if (k + dk < rep.cols.length) rows[ri][k + dk] = v.trim(); });
+    const pastedAmount = ai >= k && ai < k + cells.length && (cells[ai - k] || "").trim();
+    if (ai >= 0 && !pastedAmount) rowAmount(rep, rows[ri]);  // 금액 칸을 붙여 넣지 않았으면 수량×단가로
+  });
+  renumber(rep, rows); recalcSums(t);
 }
 function attachEditor(b) {
   const wrap = h("div", { class: "attach" });
@@ -285,7 +423,7 @@ function guessName() {
   return it ? it.value : T.form.name;
 }
 function payload(save = true) {
-  return { filename: guessName(), fields: S.fields, outline: S.outline, attach: S.attach, cells: S.cells || {}, save_history: save };
+  return { filename: guessName(), fields: S.fields, outline: S.outline, attach: S.attach, cells: S.cells || {}, rows: S.rows || {}, save_history: save };
 }
 async function generate() {
   const btn = $("#generate"); btn.disabled = true;
@@ -353,11 +491,20 @@ function renderLearn() {
       at.examples.length ? h("p", { class: "muted small" }, "샘플에 나온 붙임: " + at.examples.join(", ")) : null));
   }
   area.append(lineCard("꼬리 부분", "f") || "");
+  function repeatNote(t) {
+    const r = t.repeat;
+    if (!r) return null;
+    const toggle = h("button", { class: "small", onclick: () => { ov.lines["rep" + t.gti] = r.on ? "off" : "on"; save(); } },
+      r.on ? "반복 줄 끄기" : "반복 줄로 쓰기");
+    return r.on
+      ? h("p", { class: "small" }, `↕ ${r.start + 1}~${r.end + 1}번째 줄(색칠한 줄)을 반복 줄로 잡았습니다. 작성 탭에서 물품 수만큼 줄을 더하거나 뺄 수 있습니다. `, toggle)
+      : h("p", { class: "muted small" }, `↕ ${r.start + 1}~${r.end + 1}번째 줄을 반복 줄(물품 목록처럼 줄 수가 바뀌는 줄)로 쓸 수 있습니다. `, toggle);
+  }
   if ((tpl.tables || []).length) {
     area.append(h("div", { class: "card" }, h("h3", {}, "표"),
       h("div", { class: "legend" }, h("span", { class: "lf" }, "고정 칸"), h("span", { class: "li" }, "입력칸"),
         h("span", { class: "muted" }, "칸을 누르면 고정 ↔ 입력칸이 바뀝니다")),
-      tpl.tables.map((t) => h("div", {}, h("p", { class: "muted small" }, `표 ${t.gti + 1}`),
+      tpl.tables.map((t) => h("div", {}, h("p", { class: "muted small" }, `표 ${t.gti + 1}`), repeatNote(t),
         tableGrid(t, "learn", (c) => { ov.lines[c.key] = c.type === "fixed" ? "field" : "fixed"; save(); })))));
   }
 }
@@ -368,7 +515,7 @@ function renderSamples() {
   const ul = $("#sampleList"); ul.replaceChildren();
   if (!T.samples.length) ul.append(h("li", { class: "empty-row" }, "아직 올린 샘플이 없습니다"));
   for (const s of T.samples) {
-    ul.append(h("li", {},
+    ul.append(h("li", { "data-sid": s.id },
       h("span", { class: "grow", title: s.filename }, "📄 " + s.filename),
       s.id === T.template.base_sample_id ? h("span", { class: "badge" }, "기준 서식") : null,
       h("span", { class: "muted small" }, s.created),
@@ -377,6 +524,28 @@ function renderSamples() {
         if (!confirm(`「${s.filename}」 샘플을 빼고 다시 학습할까요?`)) return;
         try { await api(`/api/forms/${curId}/samples/${s.id}`, { method: "DELETE" }); await loadForms(); await loadTemplate(); toast("샘플을 뺐습니다."); }
         catch (e) { toast(e.message, true); } } }, "빼기")));
+  }
+  checkSamples();
+}
+let checkSeq = 0;
+async function checkSamples() {
+  const seq = ++checkSeq; const fid = curId;
+  if (!fid || !T.samples.length) return;
+  let r;
+  try { r = await getJSON(`/api/forms/${fid}/sample-check`); } catch (_) { return; }
+  if (seq !== checkSeq || fid !== curId) return;
+  for (const m of r.mismatches) {
+    const li = $("#sampleList").querySelector(`[data-sid="${m.sample_id}"]`);
+    if (!li) continue;
+    const s = T.samples.find((x) => x.id === m.sample_id);
+    li.after(h("li", { class: "warn-row" },
+      h("span", { class: "grow" }, `⚠ 위 샘플은 이 양식보다 「${m.suggest_name}」 양식과 더 비슷합니다 (비슷한 정도 ${Math.round(m.score * 100)}%` +
+        (m.own != null ? `, 이 양식과는 ${Math.round(m.own * 100)}%` : "") + "). 잘못 올렸다면 옮겨 주세요."),
+      h("button", { class: "small", onclick: async () => {
+        if (!confirm(`「${s ? s.filename : "샘플"}」을(를) 「${m.suggest_name}」 양식으로 옮길까요?`)) return;
+        try { await api(`/api/forms/${fid}/samples/${m.sample_id}/move`, { method: "POST", json: { to_form: m.suggest_form } });
+          await loadForms(); await loadTemplate(); toast(`「${m.suggest_name}」 양식으로 옮겼습니다.`); }
+        catch (e) { toast(e.message, true); } } }, "그쪽으로 옮기기")));
   }
 }
 async function upload(files) {
@@ -411,7 +580,9 @@ async function renderHistory() {
       h("button", { class: "small", title: "이 내용을 작성 탭으로 불러옵니다", onclick: () => {
         if (!T.template.ready) return toast("먼저 샘플을 올려 주세요.", true);
         const p = it.payload;
-        S = { filename: "", fields: { ...freshState().fields, ...p.fields }, outline: p.outline, attach: p.attach, cells: p.cells || {} };
+        S = { filename: "", fields: { ...freshState().fields, ...p.fields }, outline: p.outline, attach: p.attach, cells: p.cells || {},
+              rows: p.rows && Object.keys(p.rows).length ? clone(p.rows) : {}, manual: {} };
+        afterRowsLoaded();
         saveDraft(); renderWrite(); showTab("write"); toast("이전 내용을 불러왔습니다. 필요한 부분만 고쳐 쓰세요.");
       } }, "불러오기"),
       h("button", { class: "small", onclick: async () => {
@@ -718,7 +889,7 @@ $("#aiKeyDel").addEventListener("click", () => {
 async function aiDraft() {
   const brief = $("#aiBrief").value.trim();
   if (!brief) return toast("무엇을 기안할지 간단히 적어 주세요.", true);
-  const sig = (st) => JSON.stringify([st.fields, (st.outline || []).map((x) => [x.label || "", x.value || ""]), st.attach, st.cells || {}]);
+  const sig = (st) => JSON.stringify([st.fields, (st.outline || []).map((x) => [x.label || "", x.value || ""]), st.attach, st.cells || {}, st.rows || {}]);
   const hasContent = sig(S) !== sig(freshState());  // 학습된 처음 상태에서 직접 고친 내용이 있을 때만 묻기
   if (hasContent && !confirm("AI가 쓴 내용으로 지금 작성 칸을 바꿀까요? (지금 내용은 지워집니다)")) return;
   const btn = $("#aiGo"); btn.disabled = true;
@@ -736,7 +907,8 @@ async function aiDraft() {
     }
     const base = freshState();
     S = { filename: r.filename || "", fields: { ...base.fields, ...r.fields }, outline: r.outline.length ? r.outline : base.outline,
-          attach: r.attach, cells: { ...r.cells } };
+          attach: r.attach, cells: { ...r.cells }, rows: { ...base.rows, ...(r.rows || {}) }, manual: {} };
+    afterRowsLoaded();
     saveDraft(); renderWrite(); refreshPreview();
     $("#aiState").textContent = `✔ ${r.model}이(가) 작성했습니다. 오른쪽 미리보기를 확인하고, 고칠 곳은 고친 뒤 📄 HWPX 만들기를 누르세요.`;
     $("#generate").scrollIntoView({ behavior: "smooth", block: "center" });

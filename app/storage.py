@@ -172,6 +172,18 @@ def sample_bytes(sample: dict) -> bytes:
     return (SAMPLES / sample["stored"]).read_bytes()
 
 
+def move_sample(form_id: int, sample_id: int, to_form: int) -> None:
+    with _lock, connect() as con:
+        r = con.execute("SELECT stored FROM samples WHERE id=? AND form_id=?", (sample_id, form_id)).fetchone()
+        if not r:
+            return
+        folder = SAMPLES / str(to_form)
+        folder.mkdir(parents=True, exist_ok=True)
+        stored = f"{to_form}/{sample_id}.hwpx"
+        shutil.move(str(SAMPLES / r["stored"]), str(SAMPLES / stored))
+        con.execute("UPDATE samples SET form_id=?, stored=? WHERE id=?", (to_form, stored, sample_id))
+
+
 def delete_sample(form_id: int, sample_id: int) -> None:
     with _lock, connect() as con:
         r = con.execute("SELECT stored FROM samples WHERE id=? AND form_id=?", (sample_id, form_id)).fetchone()
