@@ -811,6 +811,15 @@ def _assemble(doc: Doc, plan, new_id, mark: str = "") -> tuple[bytes, list[str]]
     return out, preview
 
 
+def extra_sections(data: bytes) -> int:
+    """첫 구역(section0) 말고 구역이 몇 개 더 있는지 (학습은 첫 구역만 한다)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            return sum(1 for n in z.namelist() if re.fullmatch(r"Contents/section[1-9]\d*\.xml", n))
+    except zipfile.BadZipFile:
+        return 0
+
+
 def validate(data: bytes) -> None:
     z = zipfile.ZipFile(io.BytesIO(data))
     if z.namelist()[0] != "mimetype" or z.getinfo("mimetype").compress_type != zipfile.ZIP_STORED:

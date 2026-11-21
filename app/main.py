@@ -1,6 +1,8 @@
 """기안 학습기 — 이 PC 안에서만(127.0.0.1) 동작하는 로컬 웹 서버."""
 from __future__ import annotations
 
+import copy
+import json
 import os
 import re
 import sys
@@ -42,6 +44,9 @@ async def local_only(request: Request, call_next):
     origin = request.headers.get("origin")
     if origin and origin not in {f"http://{h}" for h in ALLOWED_HOSTS}:
         return JSONResponse({"detail": "허용되지 않은 요청입니다."}, status_code=403)
+    # 다른 사이트에서 몰래 보내는 API 요청 차단 (Origin이 없는 요청도 브라우저가 이 표시는 붙인다)
+    if request.url.path.startswith("/api/") and request.headers.get("sec-fetch-site") == "cross-site":
+        return JSONResponse({"detail": "허용되지 않은 요청입니다."}, status_code=403)
     resp = await call_next(request)
     resp.headers["X-Content-Type-Options"] = "nosniff"
     resp.headers["Cache-Control"] = "no-store"
@@ -55,15 +60,46 @@ def _form_or_404(form_id: int) -> dict:
     return f
 
 
+# 학습 결과 캐시: 샘플 파일(크기·수정 시각)과 학습 설정이 같으면 다시 학습하지 않는다
+_LEARN_CACHE: dict = {}
+_SIG_CACHE: dict = {}
+_cache_lock = threading.Lock()
+
+
 def _learn(form: dict) -> tuple[dict, list[dict]]:
     samples = S.list_samples(form["id"])
     if not samples:
         return {"ready": False}, samples
+    key = (form["id"], tuple(S.sample_stamp(s) for s in samples), json.dumps(form["overrides"], sort_keys=True))
+    with _cache_lock:
+        hit = _LEARN_CACHE.get(key)
+    if hit is not None:
+        return copy.deepcopy(hit), samples
     try:
         tpl = E.learn([S.sample_bytes(s) for s in samples], [s["id"] for s in samples], form["overrides"])
     except E.HwpxError as e:
         raise HTTPException(400, str(e)) from e
+    with _cache_lock:
+        if len(_LEARN_CACHE) >= 32:
+            _LEARN_CACHE.pop(next(iter(_LEARN_CACHE)))
+        _LEARN_CACHE[key] = copy.deepcopy(tpl)
     return tpl, samples
+
+
+def _signature(sample: dict) -> set | None:
+    key = S.sample_stamp(sample)
+    with _cache_lock:
+        if key in _SIG_CACHE:
+            return _SIG_CACHE[key]
+    try:
+        sig = E.signature(S.sample_bytes(sample))
+    except Exception:  # noqa: BLE001
+        sig = None
+    with _cache_lock:
+        if len(_SIG_CACHE) >= 2000:
+            _SIG_CACHE.clear()
+        _SIG_CACHE[key] = sig
+    return sig
 
 
 def _base_bytes(tpl: dict, samples: list[dict]) -> bytes:
@@ -171,7 +207,7 @@ def template(form_id: int):
 @app.post("/api/forms/{form_id}/samples")
 async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
     f = _form_or_404(form_id)
-    added, errors, notes = [], [], []
+    added, errors, notes, warns = [], [], [], []
     for up in files:
         name = Path(up.filename or "sample.hwpx").name
         data = await up.read(MAX_UPLOAD + 1)
@@ -202,9 +238,11 @@ async def upload_samples(form_id: int, files: list[UploadFile] = File(...)):
             msg = str(e) if isinstance(e, E.HwpxError) else "문서를 읽을 수 없습니다."
             errors.append(f"{name}: {msg}")
             continue
+        if E.extra_sections(data):
+            warns.append(name)
         added.append(S.add_sample(form_id, name, data))
     tpl, _ = _learn(f)
-    return {"added": added, "errors": errors, "converted": notes, "template": tpl}
+    return {"added": added, "errors": errors, "converted": notes, "multi_section": warns, "template": tpl}
 
 
 @app.delete("/api/forms/{form_id}/samples/{sample_id}")
@@ -228,10 +266,9 @@ def sample_check(form_id: int):
     for g in S.list_forms():
         items = []
         for s in S.list_samples(g["id"]):
-            try:
-                items.append((s["id"], E.signature(S.sample_bytes(s))))
-            except Exception:  # noqa: BLE001
-                continue
+            sg = _signature(s)
+            if sg is not None:
+                items.append((s["id"], sg))
         if items:
             sigs[g["id"]] = items
             names[g["id"]] = g

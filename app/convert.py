@@ -164,7 +164,8 @@ def read_lines(filename: str, data: bytes) -> list[str]:
 def base_hwpx() -> bytes:
     if not DEFAULT_PACK.exists():
         raise ConvertError("기본 서식 파일이 없어 변환할 수 없습니다.")
-    return zipfile.ZipFile(DEFAULT_PACK).read(BASE_IN_PACK)
+    with zipfile.ZipFile(DEFAULT_PACK) as z:
+        return z.read(BASE_IN_PACK)
 
 
 def to_hwpx(filename: str, data: bytes) -> bytes:

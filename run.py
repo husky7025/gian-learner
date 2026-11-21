@@ -22,7 +22,13 @@ if __name__ == "__main__":
         from pathlib import Path
         log_dir = Path(os.environ.get("GIAN_DATA_DIR") or Path(os.environ.get("LOCALAPPDATA", Path.home())) / "기안학습기")
         log_dir.mkdir(parents=True, exist_ok=True)
-        sys.stdout = sys.stderr = open(log_dir / "app.log", "a", encoding="utf-8", buffering=1)
+        log = log_dir / "app.log"
+        try:  # 2MB가 넘으면 app.log.1로 넘기고 새로 쓴다 (계속 커지지 않게)
+            if log.exists() and log.stat().st_size > 2 * 1024 * 1024:
+                os.replace(log, log_dir / "app.log.1")
+        except OSError:
+            pass
+        sys.stdout = sys.stderr = open(log, "a", encoding="utf-8", buffering=1)
     for stream in (sys.stdout, sys.stderr):  # 영어 Windows 등에서 한글 출력 때문에 멈추지 않게
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")

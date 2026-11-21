@@ -27,6 +27,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pyinstaller
 
+      - name: 자동 시험 (실패하면 출시하지 않음)
+        run: |
+          pip install pytest
+          python -m pytest -q tests
+
       - name: 태그와 앱 버전 확인
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash

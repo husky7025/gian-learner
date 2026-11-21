@@ -189,6 +189,8 @@ MONEY = re.compile(r"금\s?([\d,]{1,20})원\s?\(\s?금\s?([가-힣]+)\s?원\s?\)
 def kor_money(n: int) -> str:
     if n == 0:
         return "영"
+    if n >= 10 ** 20:  # 「경」 단위를 넘는 수는 한글로 바꾸지 않는다
+        return str(n)
     d, sm, big = "_일이삼사오육칠팔구", ["천", "백", "십", ""], ["", "만", "억", "조", "경"]
     s, g = "", 0
     while n > 0:
@@ -406,11 +408,16 @@ def _call_openai(key: str, model: str, prompt: str, schema: dict) -> str:
 
 
 def _call_gemini(key: str, model: str, prompt: str, schema: dict) -> str:
-    data = _http_json(f"{GEMINI_URL}/models/{model}:generateContent", {
-        "systemInstruction": {"parts": [{"text": SYSTEM}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt + "\n\n[답 형식(JSON 스키마)]\n" + json.dumps(schema, ensure_ascii=False)}]}],
-        "generationConfig": {"responseMimeType": "application/json", "temperature": 0.3},
-    }, {"x-goog-api-key": key}, 180)
+    url, hdr = f"{GEMINI_URL}/models/{model}:generateContent", {"x-goog-api-key": key}
+    text = prompt + "\n\n[답 형식(JSON 스키마)]\n" + json.dumps(schema, ensure_ascii=False)
+    base = {"systemInstruction": {"parts": [{"text": SYSTEM}]}, "contents": [{"role": "user", "parts": [{"text": text}]}]}
+    gen = {"responseMimeType": "application/json", "temperature": 0.3}
+    try:  # 형식 강제(responseJsonSchema) — 모델이 받아들이지 않으면(400) 예전 방식(형식 안내만)으로 한 번 더
+        data = _http_json(url, {**base, "generationConfig": {**gen, "responseJsonSchema": schema}}, hdr, 180)
+    except AIError as e:
+        if "(400)" not in str(e):
+            raise
+        data = _http_json(url, {**base, "generationConfig": gen}, hdr, 180)
     cands = data.get("candidates") or []
     if not cands:
         raise AIError("Gemini가 답을 주지 않았습니다(안전 정책으로 막혔을 수 있습니다).")

@@ -11,3 +11,4 @@ build/
 샘플/
 *.odt
 *.pdf
+.pytest_cache/

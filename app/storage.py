@@ -50,7 +50,7 @@ def now() -> str:
 
 
 def connect() -> sqlite3.Connection:
-    con = sqlite3.connect(DB_PATH)
+    con = sqlite3.connect(DB_PATH, timeout=10)
     con.row_factory = sqlite3.Row
     con.execute("PRAGMA foreign_keys = ON")
     return con
@@ -172,6 +172,33 @@ def sample_bytes(sample: dict) -> bytes:
     return (SAMPLES / sample["stored"]).read_bytes()
 
 
+def sample_stamp(sample: dict) -> tuple:
+    """캐시 열쇠: 파일이 바뀌면(복원·교체) 같이 바뀐다."""
+    try:
+        st = (SAMPLES / sample["stored"]).stat()
+        return (sample["id"], sample["stored"], st.st_size, st.st_mtime_ns)
+    except OSError:
+        return (sample["id"], sample["stored"], -1, -1)
+
+
+def _link_tree(src: Path, dst: Path) -> None:
+    """백업용 복사: 같은 디스크면 하드링크(용량·시간 거의 0), 안 되면 복사.
+    샘플·생성 파일은 한 번 쓰면 고치지 않으므로 하드링크로 충분하다."""
+    dst.mkdir(parents=True, exist_ok=True)
+    if not src.exists():
+        return
+    for p in src.rglob("*"):
+        q = dst / p.relative_to(src)
+        if p.is_dir():
+            q.mkdir(parents=True, exist_ok=True)
+            continue
+        q.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.link(p, q)
+        except OSError:
+            shutil.copy2(p, q)
+
+
 def move_sample(form_id: int, sample_id: int, to_form: int) -> None:
     with _lock, connect() as con:
         r = con.execute("SELECT stored FROM samples WHERE id=? AND form_id=?", (sample_id, form_id)).fetchone()
@@ -275,8 +302,8 @@ def backup(reason: str) -> str:
             src.backup(dst)
         src.close()
         dst.close()
-        shutil.copytree(SAMPLES, dest / "samples")
-        shutil.copytree(OUTPUTS, dest / "outputs")
+        _link_tree(SAMPLES, dest / "samples")
+        _link_tree(OUTPUTS, dest / "outputs")
         (dest / "info.json").write_text(json.dumps({"reason": reason, "created": now()}, ensure_ascii=False), "utf-8")
         olds = sorted(p for p in BACKUPS.iterdir() if p.is_dir())
         for p in olds[:-MAX_BACKUPS]:

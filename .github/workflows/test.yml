@@ -1,0 +1,23 @@
+# main에 올릴 때마다 자동 시험 (기본 양식 꾸러미의 가상 예시만 사용)
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 패키지 설치
+        run: pip install -r requirements.txt pytest
+      - name: 시험
+        run: python -m pytest -q tests

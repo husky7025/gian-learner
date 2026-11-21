@@ -17,4 +17,7 @@
 - 샘플 폴더 `샘플/`(사용자가 실제 샘플을 두는 곳)는 .gitignore 처리 — 절대 커밋하지 않는다.
 - AI 모델: 기본 gemini-3.6-flash / gpt-6-luna (2026-11). `RETIRED_MODELS`면 기본 모델로, 모델 없음 오류면 `pick_model`로 목록에서 골라 한 번 재시도 후 저장(결과에 switched_from).
 - 실행 bat: 같은 python의 pythonw로 창 없이 실행(for 변수는 %%i — %%p는 ~dp와 겹침, 한글 경로 때문에 PYTHONIOENCODING=utf-8). 시험 때는 cmd에 GIAN_PORT/GIAN_DATA_DIR가 실제로 넘어갔는지 /api/info로 꼭 확인(2026-11-21 bash→cmd로 안 넘어가 8765 실데이터로 켜진 적 있음).
+- 자동 시험: `python -m pytest -q tests` (tests/conftest.py가 임시 데이터 폴더·가짜 Gemini 서버를 먼저 설정, 기본 꾸러미 가상 예시만 사용). release.yml은 시험 통과 후 빌드, test.yml은 main push마다 실행.
+- 캐시: main._learn은 (양식, 샘플 파일 크기·수정시각, 학습설정)으로, sample-check 표식은 샘플 파일 stamp로 캐시. 백업은 samples/outputs 하드링크(_link_tree) — 이 파일들은 쓴 뒤 고치지 않는다는 전제.
+- 보고서 검토(2026-11-21)에서 안 한 것: 문단 안 부분 서식 보존(기안·품의 샘플엔 없음, 가정통신문·협의록만), 다중 구역 학습(안내만), WAL(필요 없음), os._exit 교체, 라우터·프론트 구조 개편.
 - AI 작성: `app/ai.py` — 제공자 ollama(기본)/claude(anthropic SDK, output_config json_schema, opus-5-5 등은 fallbacks="default")/gemini/openai(REST). 키는 `ai.json`에 DPAPI 암호화. 온라인 AI는 redact()로 개인정보 가림. 시험은 GIAN_CLAUDE_URL/GIAN_OPENAI_URL/GIAN_GEMINI_URL로 가짜 서버 지정. 실제 모델로 품질 검사는 아직 못 함.

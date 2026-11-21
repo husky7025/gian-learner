@@ -414,6 +414,7 @@ async function upload(files) {
     msg.replaceChildren(
       r.added.length ? h("p", { class: "ok" }, `✔ ${r.added.length}개를 학습했습니다.`) : null,
       r.converted && r.converted.length ? h("p", { class: "muted small" }, `ℹ ${r.converted.length}개는 글자·번호 구조만 읽어 기본 서식으로 바꿨습니다: ${r.converted.join(", ")}`) : null,
+      r.multi_section && r.multi_section.length ? h("p", { class: "muted small" }, `ℹ ${r.multi_section.length}개는 구역(용지 방향 등)이 여러 개인 문서라 첫 구역만 학습합니다: ${r.multi_section.join(", ")}`) : null,
       ...r.errors.map((e) => h("p", { class: "err" }, "✖ " + e)));
     await loadForms(); await loadTemplate();
   } catch (e) { msg.replaceChildren(h("p", { class: "err" }, "✖ " + e.message)); }
