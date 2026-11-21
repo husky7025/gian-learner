@@ -312,9 +312,12 @@ function repeatGrid(t) {
       const r0 = row.length ? row[0].r : -1;
       if (r0 >= rep.start && r0 <= rep.end) {
         if (r0 !== rep.start) continue;
+        const spans = row.filter((c) => c.span_rep);  // 반복 줄 옆에 세로로 합친 칸(예: 「9월」)
         rows.forEach((vals, i) => {
           const tr = h("tr", { class: "rep-row" });
+          const addSpans = (pred) => { if (i === 0) spans.filter(pred).forEach((c) => tr.append(spanCell(c, rows.length))); };
           rep.cols.forEach((col, k) => {
+            addSpans((c) => c.c < col.c && (k === 0 || c.c > rep.cols[k - 1].c));
             const ta = h("textarea", { rows: 1, placeholder: col.examples[0] ? "예) " + col.examples[0] : col.head,
               oninput: (e) => {
                 vals[k] = e.target.value; autoGrow(e.target);
@@ -334,6 +337,7 @@ function repeatGrid(t) {
             ta.value = vals[k] ?? "";
             tr.append(h("td", { class: "field", colspan: col.cs > 1 ? col.cs : null }, ta));
           });
+          addSpans((c) => c.c > rep.cols[rep.cols.length - 1].c);
           tr.append(h("td", { class: "rowctl" }, h("button", { class: "small", title: "이 줄 지우기", onclick: () => {
             rows.splice(i, 1); if (!rows.length) rows.push(blankRow(rep));
             renumber(rep, rows); recalcSums(t); draw(); changed(); } }, "✕")));
@@ -374,6 +378,16 @@ function repeatGrid(t) {
   };
   draw();
   return wrap;
+}
+function spanCell(c, n) {
+  const td = h("td", { class: c.type, rowspan: n > 1 ? n : null });
+  if (c.type === "field") {
+    const ta = h("textarea", { rows: 1, placeholder: c.examples && c.examples[0] ? "예) " + c.examples[0] : "",
+      oninput: (e) => { S.cells[c.key] = e.target.value; autoGrow(e.target); changed(); } });
+    ta.value = S.cells[c.key] ?? c.default ?? "";
+    td.append(ta);
+  } else td.append(c.text || " ");
+  return td;
 }
 function pasteRows(t, i, k, txt) {
   const rep = t.repeat; const rows = S.rows[t.gti];

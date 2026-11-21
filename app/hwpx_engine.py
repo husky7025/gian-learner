@@ -278,24 +278,32 @@ MAX_REPEAT_ROWS = 200
 
 
 def _sig(row: list[dict]) -> tuple:
-    return tuple((c["c"], c["cs"]) for c in row)
+    """줄 모양: 세로로 합친 옆 칸(예: 「3월」)은 빼고 한 줄짜리 칸만."""
+    return tuple((c["c"], c["cs"]) for c in row if c["rs"] == 1)
 
 
-def _plain_row(row: list[dict]) -> bool:
-    return len(row) >= 2 and not any(c["rs"] > 1 or c["locked"] for c in row) and not any(SUM_RE.match(c["text"]) for c in row)
+def _plain_row(row: list[dict], allow_span: bool = False) -> bool:
+    core = [c for c in row if c["rs"] == 1]
+    if len(core) < 2 or any(c["locked"] for c in core) or any(SUM_RE.match(c["text"]) for c in row):
+        return False
+    return allow_span or len(core) == len(row)
 
 
 def find_repeat(rows: list[list[dict]]) -> tuple[int, int] | None:
-    """머리글 줄 아래에 칸 모양이 같은 줄이 이어지는 가장 긴 구간(시작, 끝 줄 번호)."""
+    """머리글 줄 아래에 칸 모양이 같은 줄이 이어지는 가장 긴 구간(시작, 끝 줄 번호).
+    구간 첫 줄에서 시작해 아래로 합쳐진 옆 칸(월중행사표의 「월」 칸 등)은 허용한다."""
     best = None
     i = 1
     while i < len(rows):
-        if not _plain_row(rows[i]):
+        if not _plain_row(rows[i], allow_span=True):
             i += 1
             continue
         sig, j = _sig(rows[i]), i
         while j + 1 < len(rows) and _sig(rows[j + 1]) == sig and _plain_row(rows[j + 1]):
             j += 1
+        spans = [c["rs"] for c in rows[i] if c["rs"] > 1]
+        if spans:  # 합친 칸이 덮는 줄까지만 (그 아래는 다른 묶음)
+            j = min(j, i + min(spans) - 1)
         if best is None or j - i > best[1] - best[0]:
             best = (i, j)
         i = j + 1
@@ -372,6 +380,8 @@ def _learn_tables(base: Doc, others: list[Doc], overrides: dict, total: int) -> 
                 for k, ot in enumerate(other_t):
                     if gti < len(ot):
                         orow = _map_row(cell["r"], use_reg, o_regs[k])
+                        if orow is None and cell["rs"] > 1 and o_regs[k]:
+                            orow = o_regs[k][0]  # 합친 옆 칸(「3월」 등)은 다른 샘플의 구간 첫 줄과 비교
                         if orow is None:
                             continue
                         hit = next((c for r in ot[gti]["rows"] for c in r if c["r"] == orow and c["c"] == cell["c"]), None)
@@ -391,7 +401,9 @@ def _learn_tables(base: Doc, others: list[Doc], overrides: dict, total: int) -> 
                 spec = {"key": key, "r": cell["r"], "c": cell["c"], "cs": cell["cs"], "rs": cell["rs"],
                         "text": cell["text"], "type": kind, "auto": auto, "locked": cell["locked"],
                         "default": default if kind == "field" else cell["text"], "examples": examples[:5]}
-                if use_reg and use_reg[0] <= cell["r"] <= use_reg[1]:
+                if use_reg and use_reg[0] <= cell["r"] <= use_reg[1] and cell["rs"] > 1:
+                    spec["span_rep"] = True  # 반복 줄 옆에 세로로 합친 칸: 줄 수에 맞춰 늘어남
+                elif use_reg and use_reg[0] <= cell["r"] <= use_reg[1]:
                     spec["rep"] = True
                     if total > 1 and kind == "field":
                         spec["default"] = ""
@@ -426,7 +438,11 @@ def _set_cell_text(tc, value: str, new_id) -> None:
 
 
 def _tr_height(tr) -> int:
-    hs = [int(sz.get("height", 0)) for sz in tr.findall(f"{HP}tc/{HP}cellSz")]
+    hs = []
+    for tc in tr.findall(HP + "tc"):
+        sp, sz = tc.find(HP + "cellSpan"), tc.find(HP + "cellSz")
+        if sz is not None and (sp is None or int(sp.get("rowSpan", 1)) == 1):  # 합친 칸은 여러 줄 높이라 제외
+            hs.append(int(sz.get("height", 0)))
     return max(hs, default=0)
 
 
@@ -467,13 +483,29 @@ def resize_repeat(tbl, start: int, end: int, cols: list[dict], values: list[list
         values = [[""] * len(cols)]
     n = len(values)
 
-    def source(i):
-        if k_old == 1 or i == 0:
-            return body[0]
-        if i == n - 1:
-            return body[-1]
-        return body[min(i, k_old - 2)]
+    def borders(tr):
+        return tuple(tc.get("borderFillIDRef") for tc in tr.findall(HP + "tc")
+                     if (tc.find(HP + "cellSpan") is None or int(tc.find(HP + "cellSpan").get("rowSpan", 1)) == 1))
 
+    def look(tr):  # 테두리 + 글자 모양(빨간 휴일 줄 같은 특별한 줄을 가려내려고)
+        return (borders(tr), tuple(r.get("charPrIDRef") for r in tr.iter(HP + "run")))
+
+    # 가장 흔한 줄 모양을 새 줄의 본으로 (첫·끝 줄은 테두리가 다를 때만 원래 줄 사용)
+    counts = Counter(look(tr) for tr in body)
+    common = max(body, key=lambda tr: (counts[look(tr)], -body.index(tr)))
+    first = body[0] if borders(body[0]) != borders(common) else common
+    last = body[-1] if borders(body[-1]) != borders(common) else common
+
+    def source(i):
+        if i == 0:
+            return first
+        if i == n - 1:
+            return last
+        return common
+
+    span_tcs = [tc for tc in body[0].findall(HP + "tc")
+                if tc.find(HP + "cellSpan") is not None and int(tc.find(HP + "cellSpan").get("rowSpan", 1)) > 1
+                and tc.find(HP + "cellAddr") is not None]
     used = set()
     new_trs = []
     for i in range(n):
@@ -483,6 +515,17 @@ def resize_repeat(tbl, start: int, end: int, cols: list[dict], values: list[list
             for p in tr.iter(HP + "p"):
                 p.set("id", new_id())
         used.add(id(src))
+        for tc in tr.findall(HP + "tc"):  # 합친 옆 칸은 아래에서 첫 줄에만 다시 넣는다
+            sp = tc.find(HP + "cellSpan")
+            if sp is not None and int(sp.get("rowSpan", 1)) > 1:
+                tr.remove(tc)
+        if i == 0:
+            for stc in span_tcs:
+                col = int(stc.find(HP + "cellAddr").get("colAddr", 0))
+                tcs = tr.findall(HP + "tc")
+                after = [t for t in tcs if int(t.find(HP + "cellAddr").get("colAddr", 0)) < col]
+                tr.insert(list(tr).index(after[-1]) + 1 if after else list(tr).index(tcs[0]) if tcs else len(tr),
+                          copy.deepcopy(stc))
         for tc in tr.findall(HP + "tc"):
             a = tc.find(HP + "cellAddr")
             if a is not None:
@@ -503,6 +546,12 @@ def resize_repeat(tbl, start: int, end: int, cols: list[dict], values: list[list
     for j, tr in enumerate(new_trs):
         tbl.insert(pos + j, tr)
     if delta:
+        for tc in new_trs[0].findall(HP + "tc"):  # 첫 줄에서 시작한 합친 칸 늘이기/줄이기
+            sp, csz = tc.find(HP + "cellSpan"), tc.find(HP + "cellSz")
+            if sp is not None and int(sp.get("rowSpan", 1)) > 1:
+                sp.set("rowSpan", str(max(1, int(sp.get("rowSpan")) + delta)))
+                if csz is not None and csz.get("height"):
+                    csz.set("height", str(max(1, int(csz.get("height")) + new_h - old_h)))
         for tr in tbl.findall(HP + "tr"):
             for tc in tr.findall(HP + "tc"):
                 a, sp = tc.find(HP + "cellAddr"), tc.find(HP + "cellSpan")
