@@ -1,7 +1,7 @@
 """Windows용 배포 zip 만들기 (PyInstaller, Python 설치 없이 실행되는 exe).
 
 사용: python tools/build_exe.py [--out 폴더]
-결과: <out>/gian-learner-v<버전>-windows.zip  (안에 「기안학습기」 폴더: 기안학습기.exe + 사용안내.txt)
+결과: <out>/gian-learner-v<버전>-windows.zip  (안에 「행정업무 비서」 폴더: 행정업무 비서.exe + 사용안내.txt)
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from app.version import __version__  # noqa: E402
 
-APP_NAME = "기안학습기"
+APP_NAME = "행정업무 비서"
 
 
 def main():

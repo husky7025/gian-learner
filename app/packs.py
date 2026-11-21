@@ -150,9 +150,9 @@ def read_pack(data: bytes, categories: dict) -> list[dict]:
         z = zipfile.ZipFile(io.BytesIO(data))
         manifest = json.loads(z.read("manifest.json").decode("utf-8"))
     except (zipfile.BadZipFile, KeyError, ValueError) as e:
-        raise PackError("기안 학습기 꾸러미(.gianpack) 파일이 아닙니다.") from e
+        raise PackError("행정업무 비서 꾸러미(.gianpack) 파일이 아닙니다.") from e
     if manifest.get("format") != FORMAT or not isinstance(manifest.get("forms"), list):
-        raise PackError("기안 학습기 꾸러미(.gianpack) 파일이 아닙니다.")
+        raise PackError("행정업무 비서 꾸러미(.gianpack) 파일이 아닙니다.")
     if int(manifest.get("version", 0)) > VERSION:
         raise PackError("더 새 버전의 앱에서 만든 꾸러미입니다. 앱을 업데이트해 주세요.")
     if sum(i.file_size for i in z.infolist()) > MAX_PACK * 2:

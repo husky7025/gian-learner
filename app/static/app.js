@@ -634,7 +634,7 @@ function showSys(st) {
   $("#autostart").checked = !!st.autostart;
 }
 $("#mkDesktop").addEventListener("click", async () => {
-  try { showSys(await getJSON("/api/system/desktop-shortcut", { method: "POST" })); toast("바탕화면에 「기안 학습기」 바로가기를 만들었습니다."); }
+  try { showSys(await getJSON("/api/system/desktop-shortcut", { method: "POST" })); toast("바탕화면에 「행정업무 비서」 바로가기를 만들었습니다."); }
   catch (e) { toast(e.message, true); }
 });
 $("#autostart").addEventListener("change", async (e) => {
@@ -647,7 +647,7 @@ $("#shutdown").addEventListener("click", async () => {
   if (!confirm("앱을 종료할까요? (학습 내용은 그대로 저장되어 있습니다)")) return;
   try { await api("/api/shutdown", { method: "POST" }); } catch (_) {}
   document.body.replaceChildren(h("div", { class: "empty" }, h("h1", {}, "앱을 종료했습니다"),
-    h("p", {}, "다시 쓰려면 바탕화면의 「기안 학습기」 바로가기나 「기안학습기 실행.bat」을 여세요. 이 탭은 닫아도 됩니다.")));
+    h("p", {}, "다시 쓰려면 바탕화면의 「행정업무 비서」 바로가기나 「행정업무 비서 실행.bat」을 여세요. 이 창은 닫아도 됩니다.")));
 });
 
 // ───────── 입력 도우미 ─────────

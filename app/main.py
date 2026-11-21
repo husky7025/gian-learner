@@ -1,4 +1,4 @@
-"""기안 학습기 — 이 PC 안에서만(127.0.0.1) 동작하는 로컬 웹 서버."""
+"""행정업무 비서 — 이 PC 안에서만(127.0.0.1) 동작하는 로컬 웹 서버."""
 from __future__ import annotations
 
 import copy
@@ -32,7 +32,7 @@ RESOURCES = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent.parent
 DEFAULT_PACK = RESOURCES / "packs" / "기본양식.gianpack"
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 
-app = FastAPI(title="기안 학습기", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+app = FastAPI(title="행정업무 비서", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
 S.init()
 
 

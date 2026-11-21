@@ -1,4 +1,4 @@
-"""기안 학습기 실행: 서버를 이 PC 전용 주소(127.0.0.1)로 켜고 데스크톱 창(pywebview)으로 연다.
+"""행정업무 비서 실행: 서버를 이 PC 전용 주소(127.0.0.1)로 켜고 데스크톱 창(pywebview)으로 연다.
 
 - 기본: 데스크톱 앱 창(Edge WebView2)으로 실행. 창을 닫으면 서버도 함께 종료된다.
 - WebView2가 없는 구형 PC이거나 --browser 인수를 주면 자동으로 웹 브라우저로 열린다.
@@ -39,7 +39,7 @@ def open_desktop_window() -> bool:
         webview.settings["ALLOW_DOWNLOADS"] = True
         webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
         webview.create_window(
-            "기안 학습기",
+            "행정업무 비서",
             URL,
             width=1280,
             height=840,
@@ -90,7 +90,7 @@ if __name__ == "__main__":
     if no_browser or force_browser:
         if not no_browser:
             threading.Timer(1.5, lambda: webbrowser.open(URL)).start()
-        print(f"기안 학습기: {URL}  (이 창을 닫으면 앱이 꺼집니다)")
+        print(f"행정업무 비서: {URL}  (이 창을 닫으면 앱이 꺼집니다)")
         uvicorn.run(app, host=HOST, port=PORT, log_level="warning", log_config=None)
         sys.exit(0)
 
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         print("서버 시작에 실패했습니다.")
         sys.exit(1)
 
-    print(f"기안 학습기: {URL}")
+    print(f"행정업무 비서: {URL}")
     if open_desktop_window():
         # 창 X 버튼을 닫으면 서버도 깔끔하게 종료
         server.should_exit = True
