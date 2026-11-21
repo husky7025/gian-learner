@@ -5,53 +5,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>행정업무 AI 사용설명서</title>
 <style>
-  /* 앱 화면과 같은 따뜻한 크림·코랄 디자인 */
-  :root { --primary: #cc785c; --primary-d: #a9583e; --ink: #141413; --body: #3d3d3a; --line: #e6dfd8; --muted: #6c6a64;
-    --bg: #faf9f5; --soft: #f5f0e8; --card: #efe9de; --dark: #181715; --dark-up: #252320; --on-dark: #faf9f5;
-    --warn: #fbf1df; --ok: #e9f3ea;
-    --serif: "Copernicus", "Tiempos Headline", Georgia, "함초롬바탕", "HCR Batang", "Noto Serif KR", "Nanum Myeongjo", "나눔명조", "Batang", "바탕", serif;
-    --sans: "Inter", "Pretendard", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif; }
+  /* 앱 화면과 같은 디자인: 흰 바탕·연회색·검정, 누를 수 있는 것은 파란색 하나 */
+  :root { --primary: #0066cc; --primary-focus: #0071e3; --primary-on-dark: #2997ff; --ink: #1d1d1f; --ink-80: #333336;
+    --muted: #6e6e73; --line: #e0e0e0; --line-soft: #f0f0f0; --bg: #ffffff; --soft: #f5f5f7; --chip: #e8e8ed;
+    --tile: #272729; --black: #000; --tint: rgba(0, 102, 204, .07); --warn: #fff8e6; --ok: #f0f8f2;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Pretendard", "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+    --display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Pretendard", "Apple SD Gothic Neo", "Segoe UI", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif; }
   * { box-sizing: border-box; }
-  body { margin: 0; font-family: var(--sans); font-size: 17px; line-height: 1.85; color: var(--body); background: var(--bg); }
-  header { position: sticky; top: 0; z-index: 5; background: var(--dark); color: var(--on-dark); padding: 14px 28px; display: flex; align-items: center; gap: 14px; }
-  header h1 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.5px; font-size: 24px; margin: 0; flex: 1; color: var(--on-dark); }
-  header a.back { background: var(--primary); color: #fff; text-decoration: none; padding: 9px 18px; border-radius: 8px; font-weight: 600; font-size: 15px; }
-  header a.back:hover { background: var(--primary-d); }
-  .wrap { display: grid; grid-template-columns: 250px 1fr; gap: 28px; max-width: 1200px; margin: 0 auto; padding: 28px 24px; }
-  nav.toc { position: sticky; top: 84px; align-self: start; background: var(--soft); border-radius: 12px; padding: 14px 16px; font-size: 15px; }
-  nav.toc a { display: block; color: var(--ink); text-decoration: none; padding: 4px 8px; border-radius: 6px; }
-  nav.toc a:hover { background: var(--card); color: var(--primary-d); }
-  main section { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 28px 32px; margin-bottom: 24px; scroll-margin-top: 90px; }
-  h2 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.5px; font-size: 30px; line-height: 1.2; margin: 0 0 14px; color: var(--ink); }
-  h3 { font-family: var(--serif); font-weight: 400; letter-spacing: -0.3px; font-size: 21px; margin: 22px 0 6px; color: var(--ink); }
-  a { color: var(--primary-d); }
+  body { margin: 0; font-family: var(--sans); font-size: 17px; line-height: 1.75; letter-spacing: -0.3px; color: var(--ink); background: var(--soft); -webkit-font-smoothing: antialiased; }
+  header { position: sticky; top: 0; z-index: 5; background: rgba(0, 0, 0, .86); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px);
+    color: #fff; padding: 12px 28px; display: flex; align-items: center; gap: 14px; }
+  header h1 { font-family: var(--display); font-weight: 600; letter-spacing: -0.3px; font-size: 21px; margin: 0; flex: 1; color: #fff; }
+  header a.back { background: var(--primary); color: #fff; text-decoration: none; padding: 8px 20px; border-radius: 9999px; font-size: 15px; }
+  header a.back:hover { background: var(--primary-focus); }
+  .wrap { display: grid; grid-template-columns: 250px 1fr; gap: 28px; max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+  nav.toc { position: sticky; top: 80px; align-self: start; background: var(--bg); border-radius: 18px; padding: 14px 12px; font-size: 15px; }
+  nav.toc a { display: block; color: var(--ink-80); text-decoration: none; padding: 4px 10px; border-radius: 8px; }
+  nav.toc a:hover { background: var(--soft); color: var(--primary); }
+  main section { background: var(--bg); border-radius: 18px; padding: 36px 40px; margin-bottom: 20px; scroll-margin-top: 80px; }
+  h2 { font-family: var(--display); font-weight: 600; letter-spacing: -0.4px; font-size: 34px; line-height: 1.15; margin: 0 0 16px; color: var(--ink); }
+  h3 { font-family: var(--display); font-weight: 600; letter-spacing: -0.3px; font-size: 21px; margin: 26px 0 8px; color: var(--ink); }
+  b, strong { font-weight: 600; }
+  a { color: var(--primary); }
   ol.steps { counter-reset: s; list-style: none; padding: 0; }
-  ol.steps > li { counter-increment: s; position: relative; padding: 12px 14px 12px 58px; margin: 8px 0; background: var(--card); border-radius: 12px; }
-  ol.steps > li::before { content: counter(s); position: absolute; left: 14px; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #fff; font-weight: 700; text-align: center; line-height: 32px; }
-  .btn { display: inline-block; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; font-size: 15px; white-space: nowrap; color: var(--ink); }
-  .btn.blue { background: var(--primary); color: #fff; border-color: var(--primary); }
-  .tip, .warn, .ok { border-radius: 10px; padding: 12px 16px; margin: 12px 0; }
-  .tip { background: var(--soft); border-left: 4px solid var(--primary); }
-  .warn { background: var(--warn); border-left: 4px solid #d4a017; }
-  .ok { background: var(--ok); border-left: 4px solid #3f8f55; }
-  kbd { background: var(--card); border: 1px solid #d8cfc0; border-bottom-width: 2px; border-radius: 4px; padding: 0 6px; font-size: 14px; }
-  /* 화면 그림 */
-  .mock { display: grid; grid-template-columns: 170px 1fr; gap: 0; border: 2px solid var(--dark); border-radius: 12px; overflow: hidden; font-size: 14px; line-height: 1.5; margin: 12px 0; max-width: 760px; }
-  .mock .side { background: var(--dark); color: #e9e5dc; padding: 10px; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 12px 16px 12px 60px; margin: 8px 0; background: var(--soft); border-radius: 14px; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 16px; top: 12px; width: 32px; height: 32px; border-radius: 50%; background: var(--ink); color: #fff; font-weight: 600; text-align: center; line-height: 32px; }
+  .btn { display: inline-block; background: #fafafc; border: 1px solid var(--line); border-radius: 8px; padding: 0 9px; font-size: 15px; white-space: nowrap; color: var(--ink-80); }
+  .btn.blue { background: var(--primary); color: #fff; border-color: var(--primary); border-radius: 9999px; padding: 0 12px; }
+  .tip, .warn, .ok { border-radius: 14px; padding: 14px 18px; margin: 14px 0; }
+  .tip { background: var(--tint); }
+  .warn { background: var(--warn); }
+  .ok { background: var(--ok); }
+  kbd { background: var(--soft); border: 1px solid #d2d2d7; border-bottom-width: 2px; border-radius: 5px; padding: 0 6px; font-size: 14px; font-family: var(--sans); }
+  /* 화면 그림 (앱과 같은 연회색 사이드바) */
+  .mock { display: grid; grid-template-columns: 170px 1fr; gap: 0; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; font-size: 14px; line-height: 1.5; margin: 14px 0; max-width: 760px; }
+  .mock .side { background: var(--soft); color: var(--ink); padding: 10px; border-right: 1px solid var(--line); }
   .mock .main { padding: 10px; background: var(--bg); }
-  .mock .box { border: 2px dashed #c9bfae; border-radius: 8px; padding: 6px 8px; margin: 5px 0; position: relative; background: var(--card); color: var(--ink); }
-  .mock .side .box { background: var(--dark-up); color: #e9e5dc; border-color: #4a4640; }
-  .mock .num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: #fff; text-align: center; line-height: 24px; font-weight: 700; margin-right: 6px; font-size: 13px; }
+  .mock .box { border: 2px dashed #c7c7cc; border-radius: 8px; padding: 6px 8px; margin: 5px 0; position: relative; background: var(--bg); color: var(--ink); }
+  .mock .side .box { background: var(--bg); }
+  .mock .num { display: inline-block; width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: #fff; text-align: center; line-height: 24px; font-weight: 600; margin-right: 6px; font-size: 13px; }
   .mock .row { display: flex; gap: 8px; }
   .mock .row .box { flex: 1; }
   table.terms { border-collapse: collapse; width: 100%; }
-  table.terms td { border-bottom: 1px solid var(--line); padding: 8px; vertical-align: top; }
-  table.terms td:first-child { font-weight: 700; white-space: nowrap; width: 150px; color: var(--ink); }
-  details { border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; margin: 8px 0; background: var(--soft); }
-  details summary { cursor: pointer; font-weight: 700; color: var(--ink); }
-  details[open] summary { margin-bottom: 6px; color: var(--primary-d); }
+  table.terms td { border-bottom: 1px solid var(--line-soft); padding: 10px 8px; vertical-align: top; }
+  table.terms td:first-child { font-weight: 600; white-space: nowrap; width: 150px; color: var(--ink); }
+  details { border-radius: 14px; padding: 10px 16px; margin: 8px 0; background: var(--soft); }
+  details summary { cursor: pointer; font-weight: 600; color: var(--ink); }
+  details[open] summary { margin-bottom: 6px; color: var(--primary); }
   .big { font-size: 19px; }
-  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; } }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } nav.toc { position: static; } main section { padding: 24px; } }
   @media print { header, nav.toc { display: none; } .wrap { display: block; } section { break-inside: avoid; } }
 </style>
 </head>
@@ -125,7 +127,7 @@
   <p>API 키는 AI를 쓰기 위한 <b>비밀번호 같은 긴 글자</b>입니다. 다른 사람에게 알려 주지 마세요.</p>
   <table class="terms">
     <tr><td>Claude</td><td><b>platform.claude.com</b> 가입 → 크레딧 결제(Billing) → <b>API Keys</b> → <b>Create Key</b> → 나온 키(sk-ant-…)를 복사</td></tr>
-    <tr><td>Gemini</td><td><b>aistudio.google.com</b> (구글 계정으로 로그인) → <b>Get API key</b> → <b>Create API key</b> → 복사 (결제 연결 없이 무료로 시작할 수 있습니다)</td></tr>
+    <tr><td>Gemini</td><td><a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer"><b>aistudio.google.com/apikey</b></a> (구글 계정으로 로그인 · ⚙ 설정 → 🤖 AI 설정의 <b>🔑 API 키 받는 방법</b> 버튼으로도 열 수 있습니다) → <b>Get API key</b> → <b>Create API key</b> → 복사 (결제 연결 없이 무료로 시작할 수 있습니다)</td></tr>
     <tr><td>ChatGPT</td><td><b>platform.openai.com</b> 가입 → 결제 수단 등록(Billing) → <b>API keys</b> → <b>Create new secret key</b> → 복사 (ChatGPT 유료 구독과는 별개입니다)</td></tr>
   </table>
   <ol class="steps">
@@ -273,7 +275,7 @@
   <h3>엉뚱한 샘플을 올렸을 때</h3>
   <p><span class="btn">📁 샘플</span>에서 그 파일 옆의 <span class="btn">빼기</span>를 누르세요. 남은 샘플로 다시 익힙니다.</p>
   <h3>처음부터 다시 하고 싶을 때 (초기화)</h3>
-  <p><span class="btn">📁 샘플</span> 맨 아래의 <span class="btn" style="background:#c64545;color:#fff">이 양식 학습 초기화</span>를 누르세요.</p>
+  <p><span class="btn">📁 샘플</span> 맨 아래의 <span class="btn" style="background:#d70015;color:#fff;border-color:#d70015">이 양식 학습 초기화</span>를 누르세요.</p>
   <div class="ok">🛟 <b>걱정하지 마세요.</b> 초기화나 삭제를 하기 직전 상태는 <b>자동으로 백업</b>됩니다.
     <span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>백업 목록</b>에서 <span class="btn">이 상태로 되돌리기</span>를 누르면 돌아갑니다.</div>
 </section>
@@ -325,7 +327,7 @@
   <h3>끄기</h3>
   <p>왼쪽 아래 <span class="btn">⏻ 앱 종료</span>를 누르세요. 브라우저 탭만 닫으면 프로그램은 뒤에서 계속 켜져 있습니다. (켜져 있어도 문제는 없습니다)</p>
   <h3 id="update" style="scroll-margin-top:80px">새 버전으로 바꾸기</h3>
-  <p>새 버전이 나오면 화면 맨 위에 <b style="background:#cc785c;color:#fff;padding:0 6px;border-radius:4px">🎉 새 버전 v○.○.○이 나왔습니다</b> 라는 주황빛 안내가 뜹니다.</p>
+  <p>새 버전이 나오면 화면 맨 위에 <b style="background:#000;color:#fff;padding:0 8px;border-radius:6px">🎉 새 버전 v○.○.○이 나왔습니다</b> 라는 검은색 안내가 뜹니다.</p>
   <ol class="steps">
     <li>안내의 <span class="btn blue">받으러 가기</span>를 누릅니다. 내려받기 페이지가 열립니다.</li>
     <li>페이지 아래쪽 <b>Assets</b>에서 <b>gian-learner-v○.○.○-windows.zip</b>을 눌러 내려받습니다.</li>
@@ -364,7 +366,7 @@
     초기화·삭제 직전 상태는 자동으로 백업됩니다. <span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>백업 목록</b> → <span class="btn">이 상태로 되돌리기</span>.
     작성 중인 글은 자동 임시저장되어 있습니다.</details>
   <details><summary>새 버전은 어떻게 받나요?</summary>
-    새 버전이 나오면 화면 위에 주황빛 안내가 뜹니다. → <a href="#update">새 버전으로 바꾸기</a><br>직접 받으려면 인터넷 주소 <b>github.com/husky7025/gian-learner/releases</b> 에서 맨 위의 zip 파일을 받아, 기존 「행정업무 AI」 폴더를 지우고 새로 푼 폴더로 바꾸면 됩니다. 익힌 내용은 그대로 남습니다.
+    새 버전이 나오면 화면 위에 검은색 안내가 뜹니다. → <a href="#update">새 버전으로 바꾸기</a><br>직접 받으려면 인터넷 주소 <b>github.com/husky7025/gian-learner/releases</b> 에서 맨 위의 zip 파일을 받아, 기존 「행정업무 AI」 폴더를 지우고 새로 푼 폴더로 바꾸면 됩니다. 익힌 내용은 그대로 남습니다.
     (폴더 위치가 바뀌면 바탕화면 바로가기를 다시 만들어 주세요)</details>
   <details><summary>한글(hwp) 프로그램이 없어도 되나요?</summary>
     파일을 <b>만드는 것</b>은 한글이 없어도 됩니다. 만든 파일을 <b>열어 보려면</b> 한글이 필요합니다.</details>
