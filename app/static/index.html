@@ -49,9 +49,9 @@
       <button id="renameForm" class="ghost small" title="이름 바꾸기">✎</button>
       <select id="formCat" title="분류 옮기기"></select>
       <nav class="tabs">
-        <button data-tab="write" class="active">✍ 작성</button>
-        <button data-tab="learn">🧠 학습 내용</button>
-        <button data-tab="samples">📁 샘플</button>
+        <button data-tab="samples">① 샘플 <span id="tabSampleCnt" class="tab-cnt"></span></button>
+        <button data-tab="learn">② 학습 확인</button>
+        <button data-tab="write" class="active">③ 기안 작성</button>
         <button data-tab="history">🕘 이력</button>
         <a id="tabHelp" class="btn small" href="/help#write" title="이 화면 설명 보기">❓ 도움말</a>
       </nav>
@@ -60,28 +60,36 @@
 
     <div class="tab" id="tab-write">
       <div id="writeNotReady" class="empty small" hidden>
-        <p>아직 학습된 내용이 없습니다. <b>📁 샘플</b> 탭에서 기안 .hwpx 파일을 올려 주세요.</p>
+        <p>아직 학습된 양식이 없습니다. 먼저 <b>① 샘플</b> 탭에서 예전 기안 파일(.hwpx · .odt · .pdf)을 올려 주세요.</p>
+        <p><button id="goSamplesBtn" class="primary small">① 샘플 올리러 가기</button></p>
       </div>
       <div id="writeArea" class="split" hidden>
         <div class="editor">
-          <div class="ai-box">
-            <div class="ai-head">✨ 간단히 적으면 AI가 기존 기안처럼 써 드려요
+          <details id="aiDetails" class="ai-box">
+            <summary class="ai-head">
+              <span>✨ AI로 자동 작성하기</span>
               <span id="aiWho" class="muted small"></span>
-              <a class="btn small" href="/help#ai">❓</a></div>
-            <textarea id="aiBrief" rows="3" placeholder="예) 11월 20일(금) 15시 과학실, 과학동아리 실험 재료(비커·시약) 구입. 금액 25만 원. 견적서 첨부."></textarea>
-            <div class="ai-row">
-              <label class="small">기안일 <input id="aiDate" type="date"></label>
-              <button id="aiGo" class="primary">✨ AI로 작성하기</button>
-              <span id="aiState" class="muted small"></span>
+              <a class="btn small" href="/help#ai" onclick="event.stopPropagation()">❓</a>
+            </summary>
+            <div class="ai-body">
+              <div id="aiExamples" class="chips"></div>
+              <textarea id="aiBrief" rows="3" placeholder="예) 11월 20일(금) 15시 과학실, 과학동아리 실험 재료(비커·시약) 구입. 금액 25만 원. 견적서 첨부."></textarea>
+              <div class="ai-row">
+                <label class="small">기안일 <input id="aiDate" type="date"></label>
+                <button id="aiGo" class="primary">✨ AI로 작성하기</button>
+                <button id="aiCancel" class="small ghost" hidden>중단</button>
+                <button id="aiUndo" class="small ghost" hidden>↩ AI 전으로 되돌리기</button>
+                <span id="aiState" class="muted small"></span>
+              </div>
             </div>
-          </div>
+          </details>
           <div class="toolbar">
             <label class="fname">파일 이름 <input id="fileName" placeholder="비워 두면 건명/제목으로 저장"></label>
             <button id="fillExamples" class="ghost small" title="빈칸을 샘플 내용으로 채웁니다">예시로 빈칸 채우기</button>
             <button id="resetDraft" class="ghost small">처음 상태로</button>
           </div>
-          <div class="helpers">
-            <span class="muted small">입력 도우미 (커서가 있는 칸에 넣기):</span>
+          <div id="helpersBar" class="helpers">
+            <span id="helperTarget" class="muted small">입력 도우미 (넣을 칸을 클릭하세요):</span>
             <input id="helpDate" type="date"><button id="insDate" class="small">📅 날짜 넣기</button>
             <button id="insToday" class="small">오늘</button>
             <input id="helpMoney" type="text" inputmode="numeric" placeholder="금액 (예: 300000)"><button id="insMoney" class="small">💰 금액 넣기</button>
@@ -91,9 +99,17 @@
             <span id="draftState" class="muted small"></span>
             <button id="generate" class="primary">📄 HWPX 만들기</button>
           </div>
+          <div id="genResult" class="gen-result" hidden>
+            <span id="genResultMsg" class="grow"></span>
+            <button id="genOpen" class="primary small">📂 한글로 바로 열기</button>
+            <button id="genReveal" class="small">📁 폴더 열기</button>
+          </div>
         </div>
         <div class="preview">
-          <div class="preview-head">미리보기 <span class="muted small">(글자 배치는 한글에서 원본 서식으로 표시됩니다)</span></div>
+          <div class="preview-head">
+            <span>미리보기 <span class="muted small">(한글에서 원본 서식으로 열립니다)</span></span>
+            <button id="copyPreview" class="small" title="K-에듀파인 기안 본문에 바로 붙여넣기 할 수 있습니다">📋 본문 복사</button>
+          </div>
           <pre id="preview"></pre>
         </div>
       </div>
@@ -135,44 +151,63 @@
 <dialog id="settings">
   <form method="dialog" class="dlg">
     <h2>⚙ 설정 · 백업 · 초기화 <a class="btn small" href="/help#share" title="설명 보기">❓</a></h2>
-    <h3>실행 편의</h3>
-    <div class="sys-row"><button type="button" id="mkDesktop">바탕화면 바로가기 만들기</button><span id="desktopState" class="muted small"></span></div>
-    <div class="sys-row"><label><input type="checkbox" id="updCheck"> 새 버전이 나오면 알려 주기 (인터넷으로 최신 버전 번호만 확인합니다)</label>
-      <button type="button" id="updNow" class="small">지금 확인</button><span id="updState" class="muted small"></span></div>
-    <div class="sys-row"><label><input type="checkbox" id="autostart"> 컴퓨터를 켜면 자동으로 실행 (창 없이 뒤에서 실행, 바로가기를 누르면 바로 열림)</label></div>
-    <p class="muted small">저장 위치: <code id="dataDir"></code><br>(OneDrive와 동기화되지 않는 이 컴퓨터 전용 폴더입니다)</p>
-    <h3>🤖 AI 작성 설정 <a class="btn small" href="/help#ai">❓ 키 받는 방법</a></h3>
-    <div class="pack">
-      <div class="sys-row"><label>사용할 AI <select id="aiProvider"></select></label></div>
-      <div class="sys-row"><label>모델 <select id="aiModel"></select></label>
-        <input id="aiModelCustom" size="22" placeholder="모델 이름 직접 입력" hidden>
-        <button type="button" id="aiLoadModels" class="small" title="이 키로 쓸 수 있는 모델을 다시 확인합니다">🔄 모델 다시 찾기</button></div>
-      <div class="sys-row" id="aiKeyRow"><label>API 키 <input id="aiKey" type="password" autocomplete="off" size="30" placeholder="키를 붙여 넣으세요"></label>
-        <button type="button" id="aiKeySave" class="small">저장</button><button type="button" id="aiKeyDel" class="small ghost">지우기</button>
-        <span id="aiKeyState" class="muted small"></span></div>
-      <div class="sys-row" id="aiOllamaRow"><label>로컬 AI 주소 <input id="aiOllama" size="26"></label></div>
-      <div class="sys-row"><button type="button" id="aiSave" class="primary small">AI 설정 저장</button><span id="aiSetState" class="muted small"></span></div>
-      <p id="aiCloudNote" class="muted small"></p>
+    <nav class="dlg-tabs">
+      <button type="button" data-stab="basic" class="active">⚙ 기본</button>
+      <button type="button" data-stab="ai">🤖 AI 설정</button>
+      <button type="button" data-stab="pack">📦 양식 나누기</button>
+      <button type="button" data-stab="backup">🛟 백업·초기화</button>
+    </nav>
+
+    <div class="stab" id="stab-basic">
+      <h3>실행 편의</h3>
+      <div class="sys-row"><button type="button" id="mkDesktop">바탕화면 바로가기 만들기</button><span id="desktopState" class="muted small"></span></div>
+      <div class="sys-row"><label><input type="checkbox" id="updCheck"> 새 버전이 나오면 알려 주기 (인터넷으로 최신 버전 번호만 확인합니다)</label>
+        <button type="button" id="updNow" class="small">지금 확인</button><span id="updState" class="muted small"></span></div>
+      <div class="sys-row"><label><input type="checkbox" id="autostart"> 컴퓨터를 켜면 자동으로 실행 (창 없이 뒤에서 실행, 바로가기를 누르면 바로 열림)</label></div>
+      <p class="muted small">저장 위치: <code id="dataDir"></code><br>(OneDrive와 동기화되지 않는 이 컴퓨터 전용 폴더입니다)</p>
     </div>
-    <h3>양식 꾸러미 <span class="muted small">학습된 양식을 파일(.gianpack)로 주고받기</span></h3>
-    <div class="pack">
-      <div class="sys-row">
-        <label class="btn">📥 꾸러미 가져오기<input id="packFile" type="file" accept=".gianpack" hidden></label>
-        <button type="button" id="packDefault" hidden>⭐ 기본 양식 꾸러미 불러오기</button>
+
+    <div class="stab" id="stab-ai" hidden>
+      <h3>🤖 AI 작성 설정 <a class="btn small" href="/help#ai">❓ 키 받는 방법</a></h3>
+      <div class="pack">
+        <div class="sys-row"><label>사용할 AI <select id="aiProvider"></select></label></div>
+        <div class="sys-row"><label>모델 <select id="aiModel"></select></label>
+          <input id="aiModelCustom" size="22" placeholder="모델 이름 직접 입력" hidden>
+          <button type="button" id="aiLoadModels" class="small" title="이 키로 쓸 수 있는 모델을 다시 확인합니다">🔄 모델 다시 찾기</button></div>
+        <div class="sys-row" id="aiKeyRow"><label>API 키 <input id="aiKey" type="password" autocomplete="off" size="30" placeholder="키를 붙여 넣으세요"></label>
+          <button type="button" id="aiKeySave" class="small">저장</button><button type="button" id="aiKeyDel" class="small ghost">지우기</button>
+          <span id="aiKeyState" class="muted small"></span></div>
+        <div class="sys-row" id="aiOllamaRow"><label>로컬 AI 주소 <input id="aiOllama" size="26"></label></div>
+        <div class="sys-row"><button type="button" id="aiSave" class="primary small">AI 설정 저장</button><span id="aiSetState" class="muted small"></span></div>
+        <p id="aiCloudNote" class="muted small"></p>
       </div>
-      <details id="packExportBox">
-        <summary>📤 꾸러미 내보내기 (다른 선생님께 나눠 주기)</summary>
-        <p class="muted small">작성자 정보·미리보기 그림·샘플 파일 이름은 자동으로 지웁니다. 본문 속 개인정보는 내보내기 전에 검사해서 보여 드립니다.</p>
-        <div id="packForms"></div>
-        <button type="button" id="packScan" class="primary">개인정보 검사하기</button>
-        <div id="packResult"></div>
-      </details>
     </div>
-    <h3>백업 목록 <span class="muted small">초기화·삭제 직전에 자동으로 만들어집니다 (최근 20개)</span></h3>
-    <ul id="backupList" class="list compact"></ul>
-    <h3>전체 초기화</h3>
-    <p class="muted small">모든 양식, 샘플, 생성 이력을 지웁니다. 직전 상태는 백업됩니다.</p>
-    <button type="button" id="resetAll" class="danger">전체 초기화</button>
+
+    <div class="stab" id="stab-pack" hidden>
+      <h3>양식 꾸러미 <span class="muted small">학습된 양식을 파일(.gianpack)로 주고받기</span></h3>
+      <div class="pack">
+        <div class="sys-row">
+          <label class="btn">📥 꾸러미 가져오기<input id="packFile" type="file" accept=".gianpack" hidden></label>
+          <button type="button" id="packDefault" hidden>⭐ 기본 양식 꾸러미 불러오기</button>
+        </div>
+        <details id="packExportBox" open>
+          <summary>📤 꾸러미 내보내기 (다른 선생님께 나눠 주기)</summary>
+          <p class="muted small">작성자 정보·미리보기 그림·샘플 파일 이름은 자동으로 지웁니다. 본문 속 개인정보는 내보내기 전에 검사해서 보여 드립니다.</p>
+          <div id="packForms"></div>
+          <button type="button" id="packScan" class="primary">개인정보 검사하기</button>
+          <div id="packResult"></div>
+        </details>
+      </div>
+    </div>
+
+    <div class="stab" id="stab-backup" hidden>
+      <h3>백업 목록 <span class="muted small">초기화·삭제 직전에 자동으로 만들어집니다 (최근 20개)</span></h3>
+      <ul id="backupList" class="list compact"></ul>
+      <h3>전체 초기화</h3>
+      <p class="muted small">모든 양식, 샘플, 생성 이력을 지웁니다. 직전 상태는 백업됩니다.</p>
+      <button type="button" id="resetAll" class="danger">전체 초기화</button>
+    </div>
+
     <div class="dlg-foot"><button value="close">닫기</button></div>
   </form>
 </dialog>

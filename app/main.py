@@ -5,6 +5,7 @@ import copy
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -113,11 +114,14 @@ def _safe_name(name: str) -> str:
     return name if name.lower().endswith(".hwpx") else name + ".hwpx"
 
 
-def _download(data: bytes, filename: str) -> Response:
+def _download(data: bytes, filename: str, extra_headers: dict | None = None) -> Response:
+    headers = {"Content-Disposition": f"attachment; filename=\"download.hwpx\"; filename*=UTF-8''{quote(filename)}"}
+    if extra_headers:
+        headers.update(extra_headers)
     return Response(
         data,
         media_type="application/hwp+zip",
-        headers={"Content-Disposition": f"attachment; filename=\"download.hwpx\"; filename*=UTF-8''{quote(filename)}"},
+        headers=headers,
     )
 
 
@@ -357,9 +361,11 @@ def generate(form_id: int, body: GenerateIn):
     except E.HwpxError as e:
         raise HTTPException(400, str(e)) from e
     filename = _safe_name(body.filename or f["name"])
+    extra = None
     if body.save_history:
-        S.add_history(form_id, filename, data, payload)
-    return _download(data, filename)
+        hid = S.add_history(form_id, filename, data, payload)
+        extra = {"X-History-Id": str(hid)}
+    return _download(data, filename, extra)
 
 
 @app.get("/api/forms/{form_id}/history")
@@ -374,6 +380,40 @@ def history_download(hid: int):
     if not h:
         raise HTTPException(404, "기록이 없습니다.")
     return _download(S.history_bytes(h), h["filename"])
+
+
+def _history_file(hid: int) -> Path:
+    h = S.get_history(hid)
+    if not h:
+        raise HTTPException(404, "기록이 없습니다.")
+    p = (S.OUTPUTS / h["stored"]).resolve()
+    if not p.exists() or S.OUTPUTS.resolve() not in p.parents:
+        raise HTTPException(404, "저장된 파일을 찾을 수 없습니다.")
+    return p
+
+
+@app.post("/api/history/{hid}/open")
+def history_open(hid: int):
+    p = _history_file(hid)
+    if not hasattr(os, "startfile"):
+        raise HTTPException(400, "이 운영체제에서는 바로 열기를 지원하지 않습니다.")
+    try:
+        os.startfile(str(p))  # noqa: S606
+    except OSError as e:
+        raise HTTPException(500, f"파일을 열지 못했습니다(한글 프로그램 설치 여부를 확인하세요): {e}") from e
+    return {"ok": True}
+
+
+@app.post("/api/history/{hid}/reveal")
+def history_reveal(hid: int):
+    p = _history_file(hid)
+    if sys.platform != "win32":
+        raise HTTPException(400, "이 운영체제에서는 폴더 열기를 지원하지 않습니다.")
+    try:
+        subprocess.Popen(["explorer", f"/select,{p}"])  # noqa: S603, S607
+    except OSError as e:
+        raise HTTPException(500, f"폴더를 열지 못했습니다: {e}") from e
+    return {"ok": True}
 
 
 @app.delete("/api/history/{hid}")

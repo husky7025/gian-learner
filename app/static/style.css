@@ -52,7 +52,7 @@ code { background: var(--fixed); padding: 1px 4px; border-radius: 4px; word-brea
 .split { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .editor, .preview, .drop, .danger-zone, #learnArea > .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
 .preview { position: sticky; top: 0; }
-.preview-head { font-weight: 700; margin-bottom: 8px; }
+.preview-head { font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 #preview { margin: 0; white-space: pre-wrap; word-break: break-all; font-family: "Malgun Gothic", monospace; font-size: 13px; line-height: 1.75;
   background: #fbfbfc; border: 1px solid var(--line); border-radius: 6px; padding: 12px; min-height: 300px; max-height: calc(100vh - 170px); overflow: auto; }
 .toolbar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
@@ -160,3 +160,23 @@ table.grid.learn td:hover:not(.locked) { outline: 2px solid var(--primary); outl
 /* 다른 양식과 더 닮은 샘플 안내 */
 .list li.warn-row { background: #fff4d6; border-color: #f0d58a; font-size: 13px; }
 .list li.warn-row .grow { white-space: normal; overflow: visible; text-overflow: clip; }
+
+/* 선생님 편의 UX: 단계 표시, 접이식 AI, 생성 직후 바로 열기, 설정 탭 */
+.tab-cnt { font-size: 11px; background: #e3e6eb; color: #374151; border-radius: 9px; padding: 0 6px; margin-left: 2px; }
+.tabs button.active .tab-cnt { background: #e0ebff; color: var(--primary-d); }
+.tabs button.step-next { border-color: var(--primary); color: var(--primary-d); font-weight: 700; }
+.tabs button.step-dim { opacity: .6; }
+details.ai-box summary.ai-head { cursor: pointer; list-style: none; margin-bottom: 0; }
+details.ai-box summary.ai-head::-webkit-details-marker { display: none; }
+details.ai-box summary.ai-head::before { content: "▸ "; color: var(--primary); font-size: 12px; }
+details.ai-box[open] summary.ai-head::before { content: "▾ "; }
+details.ai-box[open] .ai-body { margin-top: 8px; }
+.helpers.ready { background: #eef4ff; border: 1px solid #cfdcfb; }
+.helpers.ready #helperTarget { color: var(--primary-d); font-weight: 700; }
+.gen-result { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; padding: 10px 12px;
+  background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; font-size: 13px; }
+.gen-result .grow { flex: 1; min-width: 160px; font-weight: 700; color: #1b5e20; }
+.dlg-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: 0 0 14px; padding-bottom: 0; }
+.dlg-tabs button { border-radius: 6px 6px 0 0; border-bottom: none; background: #f2f4f7; padding: 7px 12px; font-size: 13px; }
+.dlg-tabs button.active { background: #fff; color: var(--primary); font-weight: 700; border-color: var(--line); position: relative; top: 1px; }
+.stab { min-height: 260px; }

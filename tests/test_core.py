@@ -68,6 +68,16 @@ def test_preview_lines(client):
     assert r.status_code == 200 and r.json()["lines"]
 
 
+def test_generate_returns_history_id_and_missing_history_404(client):
+    f = forms_by_cat(client)["gian"]
+    r = client.post(f"/api/forms/{f['id']}/generate", json={"save_history": True})
+    assert r.status_code == 200
+    hid = r.headers.get("X-History-Id")
+    assert hid and hid.isdigit()
+    assert client.post("/api/history/999999/open").status_code == 404
+    assert client.post("/api/history/999999/reveal").status_code == 404
+
+
 def test_extra_sections():
     with zipfile.ZipFile(S.SAMPLES.parent / "x.zip", "w") as z:
         z.writestr("Contents/section0.xml", "<a/>")

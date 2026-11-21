@@ -23,10 +23,10 @@ from . import storage as S
 
 AI_FILE = S.DATA_DIR / "ai.json"
 PROVIDERS = {
-    "ollama": {"label": "로컬 AI (Ollama · 이 PC 안에서만)", "needs_key": False, "default_model": "qwen2.5:7b"},
-    "claude": {"label": "Claude (Anthropic)", "needs_key": True, "default_model": "claude-opus-5-5"},
-    "gemini": {"label": "Gemini (Google)", "needs_key": True, "default_model": "gemini-3.6-flash"},
-    "openai": {"label": "ChatGPT (OpenAI)", "needs_key": True, "default_model": "gpt-6-luna"},
+    "ollama": {"label": "무료 · 내 PC (Ollama · 인터넷 불필요)", "needs_key": False, "default_model": "qwen2.5:7b"},
+    "gemini": {"label": "빠름 · 구글 Gemini (무료 키 가능)", "needs_key": True, "default_model": "gemini-3.6-flash"},
+    "claude": {"label": "정교함 · Anthropic Claude (유료 크레딧)", "needs_key": True, "default_model": "claude-opus-5-5"},
+    "openai": {"label": "익숙함 · OpenAI ChatGPT (유료 API)", "needs_key": True, "default_model": "gpt-6-luna"},
 }
 # 시험용으로 주소를 바꿀 수 있게(평소에는 공식 주소)
 OPENAI_URL = os.environ.get("GIAN_OPENAI_URL", "https://api.openai.com/v1")

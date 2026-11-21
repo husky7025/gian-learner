@@ -123,12 +123,21 @@ async function loadTemplate() {
   T = await getJSON(`/api/forms/${curId}/template`);
   $("#formTitle").textContent = `${CATS[T.form.category] || ""} › ${T.form.name}`;
   $("#formCat").replaceChildren(...Object.entries(CATS).map(([k, v]) => h("option", { value: k, selected: k === T.form.category }, v + " 분류")));
+  const ready = !!T.template.ready;
+  $("#tabSampleCnt").textContent = String(T.samples.length);
+  document.querySelector('.tabs button[data-tab="samples"]').classList.toggle("step-next", !ready);
+  document.querySelector('.tabs button[data-tab="learn"]').classList.toggle("step-dim", !ready);
+  document.querySelector('.tabs button[data-tab="write"]').classList.toggle("step-dim", !ready);
+  $("#genResult").hidden = true;
+  prevBeforeAI = null;
+  $("#aiUndo").hidden = true;
+  renderAIExamples(T.form.category);
   const n = $("#notice");
   if (T.template.similarity_warn) {
     n.hidden = false; n.className = "notice warn";
     n.textContent = `⚠ 올린 샘플들의 항목 구성이 많이 다릅니다 (비슷한 정도 ${Math.round(T.template.similarity * 100)}%). 서로 다른 종류의 기안이라면 양식을 나눠 학습하는 것이 좋습니다.`;
   } else n.hidden = true;
-  if (T.template.ready) {
+  if (ready) {
     const saved = localStorage.getItem(draftKey());
     S = saved ? JSON.parse(saved) : freshState();
     S.cells = S.cells || {};
@@ -287,10 +296,20 @@ function guessName() {
 function payload(save = true) {
   return { filename: guessName(), fields: S.fields, outline: S.outline, attach: S.attach, cells: S.cells || {}, save_history: save };
 }
+let lastHistoryId = null;
+async function openHistory(hid) {
+  try { await api(`/api/history/${hid}/open`, { method: "POST" }); }
+  catch (e) { toast(e.message, true); }
+}
+async function revealHistory(hid) {
+  try { await api(`/api/history/${hid}/reveal`, { method: "POST" }); }
+  catch (e) { toast(e.message, true); }
+}
 async function generate() {
   const btn = $("#generate"); btn.disabled = true;
   try {
     const r = await api(`/api/forms/${curId}/generate`, { method: "POST", json: payload(true) });
+    const hid = r.headers.get("X-History-Id");
     const blob = await r.blob();
     const cd = r.headers.get("Content-Disposition") || "";
     const m = cd.match(/filename\*=UTF-8''([^;]+)/);
@@ -298,7 +317,12 @@ async function generate() {
     const a = h("a", { href: URL.createObjectURL(blob), download: name });
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-    toast(`「${name}」을(를) 만들었습니다. 다운로드 폴더를 확인하세요.`);
+    if (hid) {
+      lastHistoryId = +hid;
+      $("#genResultMsg").textContent = `✔ 「${name}」을(를) 만들었습니다.`;
+      $("#genResult").hidden = false;
+    }
+    toast(`「${name}」을(를) 만들었습니다. 아래 「한글로 바로 열기」를 눌러 확인하세요.`);
   } catch (e) { toast(e.message, true); }
   finally { btn.disabled = false; }
 }
@@ -430,6 +454,7 @@ async function renderHistory() {
     ul.append(h("li", {},
       h("span", { class: "grow", title: it.filename }, "📄 " + it.filename),
       h("span", { class: "muted small" }, it.created),
+      h("button", { class: "small primary", onclick: () => openHistory(it.id) }, "📂 열기"),
       h("a", { class: "btn small", href: `/api/history/${it.id}/download` }, "다시 받기"),
       h("button", { class: "small", title: "이 내용을 작성 탭으로 불러옵니다", onclick: () => {
         if (!T.template.ready) return toast("먼저 샘플을 올려 주세요.", true);
@@ -444,7 +469,14 @@ async function renderHistory() {
 }
 
 // ───────── 설정(백업·전체 초기화) ─────────
-async function openSettings() {
+function showSettingsTab(tab) {
+  document.querySelectorAll(".dlg-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.stab === tab));
+  for (const t of ["basic", "ai", "pack", "backup"]) $(`#stab-${t}`).hidden = t !== tab;
+}
+document.querySelectorAll(".dlg-tabs button").forEach((b) => b.addEventListener("click", () => showSettingsTab(b.dataset.stab)));
+
+async function openSettings(tab = "basic") {
+  showSettingsTab(tab);
   const info = await getJSON("/api/info");
   $("#dataDir").textContent = info.data_dir;
   getJSON("/api/system").then(showSys).catch(() => {});
@@ -489,6 +521,20 @@ $("#formCat").addEventListener("change", async (e) => {
 });
 $("#fileName").addEventListener("input", (e) => { S.filename = e.target.value; changed(); });
 $("#generate").addEventListener("click", generate);
+$("#goSamplesBtn").addEventListener("click", () => showTab("samples"));
+$("#genOpen").addEventListener("click", () => { if (lastHistoryId) openHistory(lastHistoryId); });
+$("#genReveal").addEventListener("click", () => { if (lastHistoryId) revealHistory(lastHistoryId); });
+$("#copyPreview").addEventListener("click", async () => {
+  const txt = $("#preview").textContent || "";
+  if (!txt.trim()) return toast("복사할 내용이 없습니다.", true);
+  try {
+    await navigator.clipboard.writeText(txt);
+  } catch (_) {
+    const ta = h("textarea", { value: txt, style: "position:fixed;opacity:0" });
+    document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove();
+  }
+  toast("본문을 복사했습니다. K-에듀파인에 Ctrl+V로 붙여넣으세요.");
+});
 $("#resetDraft").addEventListener("click", () => {
   if (!confirm("작성 중인 내용을 지우고 학습된 처음 상태로 돌릴까요?")) return;
   S = freshState(); localStorage.removeItem(draftKey()); $("#draftState").textContent = ""; renderWrite(); refreshPreview();
@@ -605,7 +651,13 @@ $("#shutdown").addEventListener("click", async () => {
 // ───────── 입력 도우미 ─────────
 let lastField = null;
 document.addEventListener("focusin", (e) => {
-  if (e.target.closest && e.target.closest("#blocks") && /^(TEXTAREA|INPUT)$/.test(e.target.tagName)) lastField = e.target;
+  if (e.target.closest && e.target.closest("#blocks") && /^(TEXTAREA|INPUT)$/.test(e.target.tagName)) {
+    lastField = e.target;
+    const row = e.target.closest(".blk-field, .ol-row");
+    const lbl = row?.querySelector("label")?.textContent || row?.querySelector(".lbl")?.value || "";
+    $("#helpersBar").classList.add("ready");
+    $("#helperTarget").textContent = lbl ? `입력 도우미 → 「${lbl.trim()}」 칸에 넣기:` : "입력 도우미 → 선택한 칸에 넣기:";
+  }
 });
 function insertText(text) {
   const el = lastField;
@@ -686,6 +738,36 @@ $("#updNow").addEventListener("click", async () => {
 
 // ───────── AI 작성 ─────────
 let AIS = null;
+let prevBeforeAI = null;
+let aiAbort = null;
+const AI_EXAMPLES = {
+  gian: [
+    { label: "행사 계획", text: "11월 25일(수) 14:00~16:00 시청각실, 1학년 진로 특강 운영 계획. 외부 강사 1명 초빙. 운영 계획서 1부 첨부." },
+    { label: "출석인정", text: "11월 27일(금) 대전시 과학탐구대회 참가 학생 3명(2학년) 출석인정결석 처리 요청. 참가 명단 1부 첨부." },
+  ],
+  pumui: [
+    { label: "물품 구입", text: "과학동아리 실험 재료(비커, 시약) 구입. 금액 250,000원. 예산 과목: 교과활동운영비. 견적서 1부 첨부." },
+    { label: "강사비 품의", text: "11월 25일(수) 진로 특강 외부 강사비(2시간) 지급. 금액 200,000원. 강사 이력서 및 영수증 첨부." },
+  ],
+  gatong: [
+    { label: "체험학습 안내", text: "12월 4일(금) 09:00~15:00 국립중앙과학관 1학년 현장체험학습 안내. 준비물: 필기도구, 편한 복장. 11월 27일까지 신청서 제출." },
+    { label: "방과후 신청", text: "겨울방학 방과후학교 수강 신청 안내. 기간: 1월 4일~1월 15일, 대상: 1·2학년 희망자. 12월 10일까지 담임교사 제출." },
+  ],
+};
+function renderAIExamples(cat) {
+  const box = $("#aiExamples");
+  if (!box) return;
+  const list = AI_EXAMPLES[cat] || AI_EXAMPLES.gian;
+  box.replaceChildren(
+    h("span", { class: "muted small" }, "예시 넣어 보기:"),
+    ...list.map((ex) => h("button", { type: "button", class: "chip", onclick: () => {
+      $("#aiBrief").value = ex.text; autoGrow($("#aiBrief")); $("#aiBrief").focus();
+    } }, "예) " + ex.label))
+  );
+}
+$("#aiDetails").addEventListener("toggle", (e) => {
+  localStorage.setItem("gian-ai-open", e.target.open ? "1" : "0");
+});
 const CLOUD_NAME = { claude: "Anthropic(Claude)", gemini: "Google(Gemini)", openai: "OpenAI(ChatGPT)" };
 // 제공자별 요금·데이터 사용 안내 (2026-11 기준)
 const CLOUD_EXTRA = {
@@ -696,7 +778,10 @@ const CLOUD_EXTRA = {
 async function loadAI() {
   try { AIS = await getJSON("/api/ai"); } catch (_) { return; }
   const p = AIS.providers.find((x) => x.id === AIS.provider);
-  $("#aiWho").textContent = p ? `· 지금 쓰는 AI: ${p.label}` : "";
+  $("#aiWho").textContent = p ? `· ${p.label}` : "";
+  const savedOpen = localStorage.getItem("gian-ai-open");
+  const aiReady = AIS.provider === "ollama" || !!(AIS.keys[AIS.provider] && AIS.keys[AIS.provider].set);
+  $("#aiDetails").open = savedOpen !== null ? savedOpen === "1" : aiReady;
   const sel = $("#aiProvider");
   const keep = AIS.providers.some((x) => x.id === sel.value) ? sel.value : AIS.provider;  // 키 저장 등으로 다시 불러와도 고르던 AI 유지
   sel.replaceChildren(...AIS.providers.map((x) => h("option", { value: x.id, selected: x.id === keep }, x.label)));
@@ -788,20 +873,32 @@ async function aiDraft() {
   if (!brief) return toast("무엇을 기안할지 간단히 적어 주세요.", true);
   const sig = (st) => JSON.stringify([st.fields, (st.outline || []).map((x) => [x.label || "", x.value || ""]), st.attach, st.cells || {}]);
   const hasContent = sig(S) !== sig(freshState());  // 학습된 처음 상태에서 직접 고친 내용이 있을 때만 묻기
-  if (hasContent && !confirm("AI가 쓴 내용으로 지금 작성 칸을 바꿀까요? (지금 내용은 지워집니다)")) return;
-  const btn = $("#aiGo"); btn.disabled = true;
-  const slow = AIS && AIS.provider === "ollama" ? " (로컬 AI는 1~3분 걸릴 수 있어요)" : "";
-  $("#aiState").textContent = "✍ AI가 기안을 쓰는 중…" + slow;
+  if (hasContent && !confirm("AI가 쓴 내용으로 지금 작성 칸을 바꿀까요? (바꾼 뒤에도 「AI 전으로 되돌리기」로 복구할 수 있습니다)")) return;
+  const btn = $("#aiGo"), cancelBtn = $("#aiCancel");
+  btn.disabled = true; cancelBtn.hidden = false;
+  aiAbort = new AbortController();
+  const slow = AIS && AIS.provider === "ollama" ? " · 로컬 AI는 1~3분 걸릴 수 있어요" : "";
+  const started = Date.now();
+  const showWait = () => {
+    const sec = Math.floor((Date.now() - started) / 1000);
+    $("#aiState").textContent = `✍ AI가 기안을 쓰는 중… (${sec}초${slow})`;
+  };
+  showWait();
+  const timer = setInterval(showWait, 1000);
+  const before = clone(S);
   try {
     let r;
-    try { r = await getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null } }); }
+    const req = () => getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null }, signal: aiAbort.signal });
+    try { r = await req(); }
     catch (e) {
       if (e.message !== "CONSENT_REQUIRED") throw e;
       const name = CLOUD_NAME[AIS.provider] || AIS.provider;
       if (!confirm(`${name} AI를 처음 사용합니다.\n\n· 적은 내용과 샘플 기안 글이 ${name} 서버로 보내집니다.\n· 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다.\n· 사용 요금은 내 API 계정에 청구됩니다.\n${AIS.provider === "gemini" ? "· ⚠ 무료 키(결제 미연결)로 보낸 내용은 Google이 제품 개선에 쓸 수 있습니다. 민감한 내용은 보내지 마세요.\n" : ""}\n계속할까요?`)) { $("#aiState").textContent = ""; return; }
       await api("/api/ai", { method: "PUT", json: { consent: { [AIS.provider]: true } } });
-      r = await getJSON(`/api/forms/${curId}/ai-draft`, { method: "POST", json: { brief, date: $("#aiDate").value || null } });
+      r = await req();
     }
+    prevBeforeAI = before;
+    $("#aiUndo").hidden = false;
     const base = freshState();
     S = { filename: r.filename || "", fields: { ...base.fields, ...r.fields }, outline: r.outline.length ? r.outline : base.outline,
           attach: r.attach, cells: { ...r.cells } };
@@ -810,10 +907,21 @@ async function aiDraft() {
       `✔ ${r.model}이(가) 작성했습니다. 오른쪽 미리보기를 확인하고, 고칠 곳은 고친 뒤 📄 HWPX 만들기를 누르세요.`;
     if (r.switched_from) loadAI();
     $("#generate").scrollIntoView({ behavior: "smooth", block: "center" });
-  } catch (e) { $("#aiState").textContent = "✖ " + e.message; }
-  finally { btn.disabled = false; }
+  } catch (e) {
+    $("#aiState").textContent = e.name === "AbortError" ? "⏹ AI 작성을 중단했습니다." : "✖ " + e.message;
+  }
+  finally { clearInterval(timer); aiAbort = null; btn.disabled = false; cancelBtn.hidden = true; }
 }
 $("#aiGo").addEventListener("click", aiDraft);
+$("#aiCancel").addEventListener("click", () => { if (aiAbort) aiAbort.abort(); });
+$("#aiUndo").addEventListener("click", () => {
+  if (!prevBeforeAI) return;
+  S = clone(prevBeforeAI);
+  prevBeforeAI = null;
+  $("#aiUndo").hidden = true;
+  saveDraft(); renderWrite(); refreshPreview();
+  toast("AI 작성 전 내용으로 되돌렸습니다.");
+});
 
 async function init() {
   try { const info = await getJSON("/api/info"); if (info.categories) CATS = info.categories; $("#appVer").textContent = "v" + info.version; } catch (_) {}
