@@ -124,7 +124,9 @@
   <ol class="steps">
     <li><span class="btn">⚙ 설정 · 백업 · 초기화</span> → <b>🤖 AI 작성 설정</b>에서 「사용할 AI」를 고릅니다.</li>
     <li><b>API 키</b> 칸에 복사한 키를 붙여 넣고(<kbd>Ctrl</kbd>+<kbd>V</kbd>) <span class="btn">저장</span>을 누릅니다. 키는 이 컴퓨터에만 암호화되어 저장되고, 화면에는 끝 4자리만 보입니다.</li>
-    <li><span class="btn">목록 불러오기</span>를 눌러 「✔ 연결됨」이 나오면 성공입니다. 모델 칸을 눌러 원하는 모델을 고르고 <span class="btn blue">AI 설정 저장</span>을 누릅니다.</li>
+    <li>키를 저장하면 <b>이 키로 쓸 수 있는 모델을 자동으로 찾아</b> 「✔ 연결됨 · 쓸 수 있는 모델 ○개」가 나옵니다.
+      <b>모델</b> 드롭다운에서 고르고 <span class="btn blue">AI 설정 저장</span>을 누릅니다. 잘 모르겠으면 <b>(추천)</b> 모델을 고르세요.
+      Gemini는 <b>(무료 키 가능)</b> 표시가 있는 모델을 무료 키로 쓸 수 있습니다. 목록이 이상하면 <span class="btn">🔄 모델 다시 찾기</span>를 누르세요.</li>
   </ol>
 
   <h3>로컬 AI(Ollama) 설치하기</h3>
@@ -132,7 +134,7 @@
     <li>인터넷에서 <b>ollama.com</b> → <b>Download</b> → Windows용을 받아 설치합니다. (학교 PC에 설치 권한이 없으면 정보 담당 선생님께 문의하세요)</li>
     <li>시작 메뉴에서 <b>명령 프롬프트</b>(cmd)를 열고 아래를 적은 뒤 <kbd>Enter</kbd> — AI 모델을 받습니다(약 5GB, 한 번만).<br>
       <code>ollama pull qwen2.5:7b</code></li>
-    <li>⚙ 설정 → 🤖 AI 작성 설정 → 「로컬 AI」 → <span class="btn">목록 불러오기</span>에서 받은 모델이 보이면 끝입니다.</li>
+    <li>⚙ 설정 → 🤖 AI 작성 설정 → 「로컬 AI」 → 모델 드롭다운에 받은 모델이 보이면 끝입니다. (안 보이면 <span class="btn">🔄 모델 다시 찾기</span>)</li>
   </ol>
   <div class="tip">💡 컴퓨터가 느리면 더 작은 모델(<code>ollama pull gemma3:4b</code>)을, 성능이 좋으면 더 큰 모델을 받아 고르세요. 큰 모델일수록 문장이 좋아집니다.</div>
 </section>

@@ -447,6 +447,7 @@ async function openSettings() {
   const info = await getJSON("/api/info");
   $("#dataDir").textContent = info.data_dir;
   getJSON("/api/system").then(showSys).catch(() => {});
+  $("#aiProvider").replaceChildren();  // 설정을 열 때는 저장된 AI부터 보여 주기
   loadAI();
   getJSON("/api/settings").then((st) => { $("#updCheck").checked = !!st.update_check; }).catch(() => {});
   $("#updState").textContent = "";
@@ -696,14 +697,53 @@ async function loadAI() {
   const p = AIS.providers.find((x) => x.id === AIS.provider);
   $("#aiWho").textContent = p ? `· 지금 쓰는 AI: ${p.label}` : "";
   const sel = $("#aiProvider");
-  sel.replaceChildren(...AIS.providers.map((x) => h("option", { value: x.id, selected: x.id === AIS.provider }, x.label)));
+  const keep = AIS.providers.some((x) => x.id === sel.value) ? sel.value : AIS.provider;  // 키 저장 등으로 다시 불러와도 고르던 AI 유지
+  sel.replaceChildren(...AIS.providers.map((x) => h("option", { value: x.id, selected: x.id === keep }, x.label)));
   showAIFields();
+}
+// 모델 드롭다운: 이 키로 쓸 수 있는 모델을 자동으로 찾아 보여 준다
+const modelCache = {};
+let modelSeq = 0;
+function renderModels(pid) {
+  const cur = AIS.models[pid] || "";
+  const data = modelCache[pid];
+  const items = data ? data.models.filter((m) => !m.tags.some((t) => t.includes("목록에 없음"))) : [{ id: cur, tags: [] }];
+  if (cur && !items.some((m) => m.id === cur)) items.unshift({ id: cur, tags: ["지금 설정 · 목록에 없음"] });
+  const sel = $("#aiModel");
+  sel.replaceChildren(
+    ...items.map((m) => h("option", { value: m.id, selected: m.id === cur }, m.id + (m.tags.length ? `  (${m.tags.join(", ")})` : ""))),
+    h("option", { value: "__custom__" }, "✏ 직접 입력…"));
+  $("#aiModelCustom").hidden = true;
+  $("#aiModelCustom").value = cur;
+}
+async function scanModels(pid, quiet = false) {
+  const seq = ++modelSeq;
+  $("#aiSetState").textContent = "쓸 수 있는 모델을 찾는 중…";
+  try {
+    const r = await getJSON(`/api/ai/models?provider=${pid}`);
+    modelCache[pid] = r;
+    if (seq !== modelSeq || $("#aiProvider").value !== pid) return;
+    renderModels(pid);
+    const n = r.models.filter((m) => !m.tags.some((t) => t.includes("목록에 없음"))).length;
+    $("#aiSetState").textContent = n ? `✔ 연결됨 · 쓸 수 있는 모델 ${n}개` + (r.recommended ? ` · 추천: ${r.recommended}` : "") : "쓸 수 있는 모델이 없습니다.";
+  } catch (e) {
+    if (seq !== modelSeq) return;
+    $("#aiSetState").textContent = (quiet ? "모델 목록을 불러오지 못했습니다: " : "✖ ") + e.message;
+  }
+}
+$("#aiModel").addEventListener("change", (e) => {
+  const custom = e.target.value === "__custom__";
+  $("#aiModelCustom").hidden = !custom;
+  if (custom) $("#aiModelCustom").focus();
+});
+function chosenModel() {
+  const v = $("#aiModel").value;
+  return (v === "__custom__" ? $("#aiModelCustom").value : v).trim();
 }
 function showAIFields() {
   const pid = $("#aiProvider").value;
   const p = AIS.providers.find((x) => x.id === pid);
-  $("#aiModel").value = AIS.models[pid] || "";
-  $("#aiModelList").replaceChildren();
+  renderModels(pid);
   $("#aiKeyRow").hidden = !p.needs_key;
   $("#aiOllamaRow").hidden = pid !== "ollama";
   $("#aiOllama").value = AIS.ollama_url;
@@ -714,30 +754,29 @@ function showAIFields() {
     ? "로컬 AI는 이 컴퓨터 안에서만 작동합니다(인터넷 전송 없음). Ollama 설치와 모델 받기가 필요합니다."
     : `AI로 작성할 때 적은 내용과 샘플 기안 글이 ${CLOUD_NAME[pid]} 서버로 보내집니다. 전화번호·이메일·주민번호와 「교사 ○○○」 같은 이름은 가려서 보냅니다. 사용 요금은 각자의 API 계정에 청구됩니다. ${CLOUD_EXTRA[pid] || ""}`;
   $("#aiSetState").textContent = "";
+  const canScan = !p.needs_key || (k && k.set);
+  if (!canScan) $("#aiSetState").textContent = "API 키를 저장하면 쓸 수 있는 모델을 자동으로 찾아 드롭다운에 보여 줍니다.";
+  else if (!modelCache[pid]) scanModels(pid, true);
 }
 $("#aiProvider").addEventListener("change", showAIFields);
-$("#aiLoadModels").addEventListener("click", async () => {
-  const pid = $("#aiProvider").value;
-  $("#aiSetState").textContent = "모델 목록을 불러오는 중…";
-  try {
-    const r = await getJSON(`/api/ai/models?provider=${pid}`);
-    $("#aiModelList").replaceChildren(...r.models.map((m) => h("option", { value: m })));
-    $("#aiSetState").textContent = r.models.length ? `✔ 연결됨 · 모델 ${r.models.length}개 (모델 칸을 눌러 고르세요)` : "모델이 없습니다.";
-  } catch (e) { $("#aiSetState").textContent = "✖ " + e.message; }
-});
+$("#aiLoadModels").addEventListener("click", () => scanModels($("#aiProvider").value));
 async function putAI(body, msg) {
   try { AIS = await getJSON("/api/ai", { method: "PUT", json: body }); showAIFields(); await loadAI(); if (msg) toast(msg); return true; }
   catch (e) { toast(e.message, true); return false; }
 }
 $("#aiSave").addEventListener("click", () => {
   const pid = $("#aiProvider").value;
-  const body = { provider: pid, models: { [pid]: $("#aiModel").value.trim() } };
+  const m = chosenModel();
+  if (!m) return toast("모델을 골라 주세요.", true);
+  const body = { provider: pid, models: { [pid]: m } };
   if (pid === "ollama") body.ollama_url = $("#aiOllama").value.trim();
   putAI(body, "AI 설정을 저장했습니다.");
 });
 $("#aiKeySave").addEventListener("click", () => {
   const v = $("#aiKey").value.trim(); if (!v) return toast("API 키를 붙여 넣어 주세요.", true);
-  putAI({ key: { provider: $("#aiProvider").value, value: v } }, "API 키를 이 컴퓨터에 암호화해 저장했습니다.");
+  const pid = $("#aiProvider").value;
+  delete modelCache[pid];  // 새 키로 쓸 수 있는 모델을 다시 찾기
+  putAI({ key: { provider: pid, value: v } }, "API 키를 이 컴퓨터에 암호화해 저장했습니다.");
 });
 $("#aiKeyDel").addEventListener("click", () => {
   if (!confirm("저장된 API 키를 지울까요?")) return;

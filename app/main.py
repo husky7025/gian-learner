@@ -462,7 +462,7 @@ def ai_models(provider: str):
     if provider not in AI.PROVIDERS:
         raise HTTPException(400, "알 수 없는 AI입니다.")
     try:
-        return {"models": AI.list_models(provider)}
+        return AI.model_choices(provider)
     except AI.AIError as e:
         raise HTTPException(400, str(e)) from e
 

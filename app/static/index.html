@@ -144,8 +144,9 @@
     <h3>🤖 AI 작성 설정 <a class="btn small" href="/help#ai">❓ 키 받는 방법</a></h3>
     <div class="pack">
       <div class="sys-row"><label>사용할 AI <select id="aiProvider"></select></label></div>
-      <div class="sys-row"><label>모델 <input id="aiModel" list="aiModelList" size="26"></label><datalist id="aiModelList"></datalist>
-        <button type="button" id="aiLoadModels" class="small">목록 불러오기</button></div>
+      <div class="sys-row"><label>모델 <select id="aiModel"></select></label>
+        <input id="aiModelCustom" size="22" placeholder="모델 이름 직접 입력" hidden>
+        <button type="button" id="aiLoadModels" class="small" title="이 키로 쓸 수 있는 모델을 다시 확인합니다">🔄 모델 다시 찾기</button></div>
       <div class="sys-row" id="aiKeyRow"><label>API 키 <input id="aiKey" type="password" autocomplete="off" size="30" placeholder="키를 붙여 넣으세요"></label>
         <button type="button" id="aiKeySave" class="small">저장</button><button type="button" id="aiKeyDel" class="small ghost">지우기</button>
         <span id="aiKeyState" class="muted small"></span></div>

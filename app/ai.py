@@ -44,6 +44,9 @@ PREFERRED_MODELS = {
     "gemini": ["gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-flash-latest"],
     "openai": ["gpt-6-luna", "gpt-6.1-terra", "gpt-5.6-luna"],
 }
+# Gemini 무료 등급에서 쓸 수 있는 모델 (Google 요금 문서, 2026-11 기준)
+GEMINI_FREE = {"gemini-3.8-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-4-hydrogen"}
+_SKIP_MODEL = re.compile(r"embed|image|imagen|tts|audio|live|veo|aqa|learnlm|robotics|computer-use|native|transcribe|realtime|search|moderation", re.I)
 MAX_SAMPLE_CHARS = 6000
 MAX_SAMPLES = 5
 
@@ -341,7 +344,7 @@ def _http_json(url: str, payload: dict | None, headers: dict, timeout: int) -> d
         low = body.lower()
         if e.code == 404 or (e.code == 400 and "model" in low and any(
                 w in low for w in ("not found", "no longer available", "not supported", "deprecated", "does not exist", "unsupported"))):
-            raise AIError("모델 이름을 찾을 수 없습니다. ⚙ 설정에서 「목록 불러오기」로 모델을 다시 골라 주세요.") from ModelNotFound(body)
+            raise AIError("모델 이름을 찾을 수 없습니다. ⚙ 설정 → AI 작성 설정의 모델 드롭다운에서 다른 모델을 골라 주세요.") from ModelNotFound(body)
         if e.code == 429:
             raise AIError("사용량 한도에 걸렸습니다. 잠시 뒤 다시 시도하거나 요금제·결제 상태를 확인해 주세요.") from e
         raise AIError(f"AI 서버 오류({e.code}): {body[:200]}") from e
@@ -556,6 +559,34 @@ def draft(tpl: dict, sample_bytes: list[bytes], brief: str, ref: date) -> dict:
     if not result["outline"] and not result["fields"] and not result["cells"]:
         raise AIError("AI가 빈 답을 주었습니다. 내용을 조금 더 자세히 적어 다시 시도해 주세요.")
     return {**result, "provider": provider, "model": model, "switched_from": switched}
+
+
+def model_choices(provider: str) -> dict:
+    """설정 화면 드롭다운용: 이 키로 쓸 수 있는 모델을 추천 순서로, 설명을 붙여서."""
+    cfg = _load()
+    current = cfg["models"].get(provider) or PROVIDERS[provider]["default_model"]
+    names = [n for n in list_models(provider) if n not in RETIRED_MODELS.get(provider, set()) and not _SKIP_MODEL.search(n)]
+    names = list(dict.fromkeys(names))
+    preferred = [m for m in PREFERRED_MODELS.get(provider, []) if m in names]
+    recommended = preferred[0] if preferred else (PROVIDERS[provider]["default_model"] if PROVIDERS[provider]["default_model"] in names else None)
+
+    def rank(n: str):
+        preview = bool(re.search(r"preview|exp|beta|alpha", n))
+        return (n != recommended, n not in preferred, preview, preferred.index(n) if n in preferred else 0, n)
+
+    items = []
+    for n in sorted(names, key=rank):
+        tags = []
+        if n == recommended:
+            tags.append("추천")
+        if provider == "gemini" and n in GEMINI_FREE:
+            tags.append("무료 키 가능")
+        if re.search(r"preview|exp|beta|alpha", n):
+            tags.append("미리보기·바뀔 수 있음")
+        items.append({"id": n, "tags": tags})
+    if current not in names:
+        items.insert(0, {"id": current, "tags": ["지금 설정 · 목록에 없음"]})
+    return {"models": items, "current": current, "recommended": recommended}
 
 
 def pick_model(provider: str, exclude: str = "") -> str | None:
